@@ -1,0 +1,21 @@
+# MyRacingData Telemetry Capture - Windows Requirements
+# Simplified for reliable PyInstaller builds
+
+# Core dependencies
+python-socketio[client]>=5.10.0
+websocket-client>=1.6.4
+requests>=2.31.0
+
+# System tray & UI
+pystray>=0.19.5
+Pillow>=10.1.0
+
+# Packaging
+pyinstaller>=6.3.0
+
+# Utilities
+python-dotenv>=1.0.0
+colorama>=0.4.6
+
+# Note: pywin32 removed - will use ctypes instead for Windows APIs
+# Note: mmap-backed-arrays removed - using standard library mmap
