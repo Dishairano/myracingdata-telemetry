@@ -1,0 +1,22 @@
+# MyRacingData Telemetry Capture - Requirements
+
+# Core dependencies
+python-socketio[client]>=5.10.0
+websocket-client>=1.6.4
+requests>=2.31.0
+
+# Game integration
+pywin32>=306  # For Windows shared memory access
+mmap-backed-arrays>=0.3.0  # Fast memory mapping
+
+# System tray & UI
+pystray>=0.19.5
+Pillow>=10.1.0
+tkinter  # Usually included with Python
+
+# Packaging
+pyinstaller>=6.3.0
+
+# Utilities
+python-dotenv>=1.0.0
+colorama>=0.4.6  # Colored console output
