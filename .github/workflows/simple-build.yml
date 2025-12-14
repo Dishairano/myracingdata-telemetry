@@ -1,0 +1,35 @@
+name: Simple Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install PyInstaller only
+        run: pip install pyinstaller
+      
+      - name: Install app dependencies
+        run: pip install websocket-client requests pystray Pillow python-socketio
+      
+      - name: Simple build command
+        run: pyinstaller --onefile --windowed --name MyRacingData-Telemetry src/main.py
+      
+      - name: List output
+        run: dir dist
+      
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: MyRacingData-Telemetry-exe
+          path: dist/MyRacingData-Telemetry.exe
