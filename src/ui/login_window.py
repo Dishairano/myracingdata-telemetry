@@ -78,18 +78,24 @@ class LoginWindow:
         
         card_title = tk.Label(
             card,
-            text="Sign in to continue",
+            text="Enter your API Key",
             font=("Arial", 14, "bold"),
             bg=self.colors['surface'],
             fg=self.colors['text']
         )
-        card_title.pack(pady=(30, 20))
+        card_title.pack(pady=(30, 10))
         
-        # Email field
-        self.create_input_field(card, "Email or Username", "email")
+        card_subtitle = tk.Label(
+            card,
+            text="Get your API key from MyRacingData settings",
+            font=("Arial", 9),
+            bg=self.colors['surface'],
+            fg=self.colors['text_secondary']
+        )
+        card_subtitle.pack(pady=(0, 20))
         
-        # Password field
-        self.create_input_field(card, "Password", "password", show="*")
+        # API Key field
+        self.create_input_field(card, "API Key", "api_key", show="*")
         
         # Remember me checkbox
         remember_frame = tk.Frame(card, bg=self.colors['surface'])
@@ -109,10 +115,10 @@ class LoginWindow:
         )
         remember_check.pack(side=tk.LEFT)
         
-        # Login button
+        # Continue button
         self.login_button = tk.Button(
             card,
-            text="Sign In",
+            text="Continue",
             font=("Arial", 12, "bold"),
             bg=self.colors['primary'],
             fg=self.colors['text'],
@@ -120,60 +126,24 @@ class LoginWindow:
             activeforeground=self.colors['text'],
             relief=tk.FLAT,
             cursor="hand2",
-            command=self.login,
+            command=self.login_with_api_key,
             height=2
         )
         self.login_button.pack(pady=20, padx=30, fill=tk.X)
         
-        # Or use API key
-        separator_frame = tk.Frame(card, bg=self.colors['surface'])
-        separator_frame.pack(pady=10, fill=tk.X, padx=30)
-        
-        sep_left = tk.Frame(separator_frame, bg=self.colors['border'], height=1)
-        sep_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        sep_text = tk.Label(
-            separator_frame,
-            text="or",
+        # Help text
+        help_text = tk.Label(
+            card,
+            text="Don't have an API key?",
             font=("Arial", 9),
             bg=self.colors['surface'],
             fg=self.colors['text_secondary']
         )
-        sep_text.pack(side=tk.LEFT, padx=10)
-        
-        sep_right = tk.Frame(separator_frame, bg=self.colors['border'], height=1)
-        sep_right.pack(side=tk.RIGHT, fill=tk.X, expand=True)
-        
-        # API Key option
-        api_key_label = tk.Label(
-            card,
-            text="Use API Key",
-            font=("Arial", 11, "bold"),
-            bg=self.colors['surface'],
-            fg=self.colors['text']
-        )
-        api_key_label.pack(pady=(10, 5))
-        
-        self.create_input_field(card, "API Key", "api_key", show="*")
-        
-        api_key_button = tk.Button(
-            card,
-            text="Continue with API Key",
-            font=("Arial", 11, "bold"),
-            bg=self.colors['card'],
-            fg=self.colors['text'],
-            activebackground='#3a3a3a',
-            activeforeground=self.colors['text'],
-            relief=tk.FLAT,
-            cursor="hand2",
-            command=self.login_with_api_key,
-            height=2
-        )
-        api_key_button.pack(pady=15, padx=30, fill=tk.X)
+        help_text.pack()
         
         # Links
         links_frame = tk.Frame(card, bg=self.colors['surface'])
-        links_frame.pack(pady=(10, 30))
+        links_frame.pack(pady=(5, 30))
         
         register_link = tk.Label(
             links_frame,
@@ -186,12 +156,21 @@ class LoginWindow:
         register_link.pack(side=tk.LEFT, padx=10)
         register_link.bind("<Button-1>", lambda e: self.open_register())
         
+        sep = tk.Label(
+            links_frame,
+            text="•",
+            font=("Arial", 9),
+            bg=self.colors['surface'],
+            fg=self.colors['text_secondary']
+        )
+        sep.pack(side=tk.LEFT)
+        
         forgot_link = tk.Label(
             links_frame,
             text="Get API Key",
             font=("Arial", 9, "underline"),
             bg=self.colors['surface'],
-            fg=self.colors['text_secondary'],
+            fg=self.colors['primary'],
             cursor="hand2"
         )
         forgot_link.pack(side=tk.LEFT, padx=10)

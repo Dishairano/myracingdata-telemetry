@@ -73,4 +73,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='build/icon.ico' if os.path.exists('build/icon.ico') else None,
 )
