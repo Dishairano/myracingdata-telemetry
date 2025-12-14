@@ -186,14 +186,25 @@ def main():
             sys.exit(0)
     
     else:
-        # System tray mode
+        # GUI mode
         try:
-            tray_app = SystemTrayApp(app)
-            tray_app.run()
+            # Try GUI first
+            from ui.main_window import MainWindow
+            
+            gui = MainWindow(app)
+            gui.run()
+            
         except Exception as e:
-            print(f"❌ Failed to start system tray: {e}")
-            print("   Try running with --no-gui flag for console mode")
-            sys.exit(1)
+            print(f"❌ Failed to start GUI: {e}")
+            print("   Falling back to system tray mode...")
+            
+            try:
+                tray_app = SystemTrayApp(app)
+                tray_app.run()
+            except Exception as e2:
+                print(f"❌ Failed to start system tray: {e2}")
+                print("   Try running with --no-gui flag for console mode")
+                sys.exit(1)
 
 if __name__ == '__main__':
     main()
