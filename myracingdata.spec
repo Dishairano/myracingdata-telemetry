@@ -4,6 +4,8 @@ PyInstaller spec file for MyRacingData Telemetry Capture
 Builds a standalone Windows executable
 """
 
+import os
+
 block_cipher = None
 
 a = Analysis(
