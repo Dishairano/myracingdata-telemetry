@@ -188,7 +188,17 @@ def main():
     else:
         # GUI mode
         try:
-            # Try GUI first
+            # Login first (one-time)
+            from ui.login_window import LoginWindow
+            
+            login = LoginWindow(app.config)
+            authenticated = login.run()
+            
+            if not authenticated:
+                print("❌ Authentication required to use the application")
+                sys.exit(1)
+            
+            # Open main window after successful login
             from ui.main_window import MainWindow
             
             gui = MainWindow(app)
