@@ -64,14 +64,14 @@ jobs:
           Compress-Archive -Path dist/package/* -DestinationPath MyRacingData-Telemetry-v1.0.0-Windows.zip
       
       - name: Upload executable artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: MyRacingData-Telemetry-Windows-Executable
           path: dist/MyRacingData-Telemetry.exe
           retention-days: 90
       
       - name: Upload distribution package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: MyRacingData-Telemetry-Windows-Package
           path: MyRacingData-Telemetry-v1.0.0-Windows.zip
