@@ -1,0 +1,35 @@
+name: Test Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: List files
+        run: |
+          dir
+          dir src
+      
+      - name: Test Python
+        run: |
+          python --version
+          pip --version
+      
+      - name: Install minimal dependencies
+        run: |
+          pip install pyinstaller pillow pystray
+      
+      - name: Test spec file exists
+        run: |
+          if (Test-Path myracingdata.spec) { Write-Host "Spec file found" } else { Write-Host "ERROR: Spec file missing"; exit 1 }
