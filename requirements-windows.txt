@@ -17,5 +17,8 @@ pyinstaller>=6.3.0
 python-dotenv>=1.0.0
 colorama>=0.4.6
 
+# Game integration
+accapi>=0.1.0  # Assetto Corsa Competizione UDP telemetry
+
 # Note: pywin32 removed - will use ctypes instead for Windows APIs
 # Note: mmap-backed-arrays removed - using standard library mmap
