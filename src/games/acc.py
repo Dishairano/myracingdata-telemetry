@@ -12,6 +12,7 @@ try:
     from accapi.client import AccClient, Event
 except ImportError:
     AccClient = None
+    Event = None  # Define Event as None when not available
     logging.warning("accapi not installed - ACC telemetry not available")
 
 logger = logging.getLogger(__name__)
@@ -136,12 +137,12 @@ class ACCTelemetryReader:
             logger.error(f"Error in ACC client thread: {e}")
             self.is_running = False
 
-    def _on_connection_state(self, event: Event):
+    def _on_connection_state(self, event):
         """Handle connection state changes"""
         state = event.content
         logger.info(f"ACC connection state: {state}")
 
-    def _on_track_data(self, event: Event):
+    def _on_track_data(self, event):
         """Handle track data update"""
         track_data = event.content
 
@@ -154,7 +155,7 @@ class ACCTelemetryReader:
 
         logger.debug(f"Track data updated: {self.track_name}")
 
-    def _on_entry_list_update(self, event: Event):
+    def _on_entry_list_update(self, event):
         """Handle entry list (car list) update"""
         car_data = event.content
 
@@ -171,7 +172,7 @@ class ACCTelemetryReader:
 
         logger.debug(f"Entry list updated (cars: {len(self.entry_list)})")
 
-    def _on_realtime_update(self, event: Event):
+    def _on_realtime_update(self, event):
         """Handle realtime session update"""
         realtime_data = event.content
 
@@ -184,7 +185,7 @@ class ACCTelemetryReader:
 
         logger.debug(f"Realtime update: {self.session_type}")
 
-    def _on_realtime_car_update(self, event: Event):
+    def _on_realtime_car_update(self, event):
         """Handle realtime car telemetry update"""
         car_data = event.content
 
@@ -201,7 +202,7 @@ class ACCTelemetryReader:
             if self.on_telemetry:
                 self.on_telemetry(telemetry)
 
-    def _on_broadcasting_event(self, event: Event):
+    def _on_broadcasting_event(self, event):
         """Handle broadcasting events"""
         event_data = event.content
         logger.debug(f"Broadcasting event: {event_data.__class__.__name__}")
