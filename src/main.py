@@ -49,25 +49,41 @@ class TelemetryCapture:
     
     def start(self):
         """Start telemetry capture"""
+        print("\n" + "="*60)
+        print("DEBUG: Starting telemetry capture...")
+        print("="*60)
+
         if self.running:
             print("⚠ Already running")
             return False
-        
+
         # Check for API key
+        print(f"DEBUG: Checking API key...")
+        print(f"DEBUG: API key exists: {bool(self.config.api_key)}")
+        if self.config.api_key:
+            print(f"DEBUG: API key value: {self.config.api_key[:20]}...")
+        print(f"DEBUG: API URL: {self.config.api_url}")
+        print(f"DEBUG: WS URL: {self.config.ws_url}")
+
         if not self.config.api_key:
             print("❌ No API key configured!")
             print("   Please set your API key in the settings")
             return False
-        
+
         # Connect to WebSocket
         print(f"🔌 Connecting to {self.config.ws_url}...")
         self.ws_client = WebSocketClient(
             self.config.ws_url,
             self.config.api_key
         )
-        
-        if not self.ws_client.connect():
+
+        print("DEBUG: Attempting WebSocket connection...")
+        connection_result = self.ws_client.connect()
+        print(f"DEBUG: WebSocket connection result: {connection_result}")
+
+        if not connection_result:
             print("❌ Failed to connect to server")
+            print(f"DEBUG: WebSocket client connected state: {self.ws_client.connected}")
             return False
         
         # Start capture thread

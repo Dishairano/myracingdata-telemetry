@@ -28,28 +28,36 @@ class WebSocketClient:
         """Connect to WebSocket server"""
         try:
             # Add API key to URL
-            ws_url = f"{self.url}?api_key={self.api_key}"
-            
+            ws_url = f"{self.url}?api_key={self.api_key[:20]}..."
+            print(f"DEBUG WS: Connecting to: {ws_url}")
+
+            # Use full API key for actual connection
+            full_ws_url = f"{self.url}?api_key={self.api_key}"
+
             self.ws = websocket.WebSocketApp(
-                ws_url,
+                full_ws_url,
                 on_open=self._on_open,
                 on_message=self._on_message,
                 on_error=self._on_error,
                 on_close=self._on_close
             )
-            
+
             # Run in separate thread
             self.running = True
             self.thread = threading.Thread(target=self._run, daemon=True)
             self.thread.start()
-            
+
             # Wait a bit for connection
-            time.sleep(1)
-            
+            print("DEBUG WS: Waiting for connection...")
+            time.sleep(2)  # Increased wait time
+
+            print(f"DEBUG WS: Connection status: {self.connected}")
             return self.connected
-            
+
         except Exception as e:
             print(f"WebSocket connection error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def disconnect(self):
@@ -112,7 +120,10 @@ class WebSocketClient:
     
     def _on_error(self, ws, error):
         """Called on error"""
-        print(f"WebSocket error: {error}")
+        print(f"DEBUG WS ERROR: {error}")
+        print(f"DEBUG WS ERROR TYPE: {type(error)}")
+        import traceback
+        traceback.print_exc()
     
     def _on_close(self, ws, close_status_code, close_msg):
         """Called when connection is closed"""
