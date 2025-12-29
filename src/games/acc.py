@@ -44,11 +44,8 @@ class ACCTelemetryReader:
             password: ACC connection password (from broadcasting.json)
             on_telemetry: Callback function(telemetry_data: dict) for telemetry updates
         """
-        if AccClient is None:
-            raise ImportError(
-                "accapi library not installed. "
-                "Install it with: pip install accapi"
-            )
+        # Don't raise error on init - only when start() is called
+        # This allows the class to be instantiated even if accapi is not available
 
         self.host = host
         self.port = port
@@ -77,6 +74,11 @@ class ACCTelemetryReader:
 
     def start(self) -> bool:
         """Start telemetry capture"""
+        # Check if accapi is available
+        if AccClient is None:
+            logger.warning("accapi library not installed - ACC telemetry not available")
+            return False
+
         if self.is_running:
             logger.warning("ACC telemetry reader already running")
             return False
