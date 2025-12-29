@@ -2,87 +2,41 @@ name: Build Windows Executable
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:  # Allows manual trigger
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-windows.txt
-      
-      - name: Build executable with PyInstaller
-        run: |
-          pyinstaller myracingdata.spec --clean
-      
-      - name: Verify build
-        run: |
-          if (Test-Path "dist/MyRacingData-Telemetry.exe") {
-            Write-Host "✓ Build successful!"
-            $size = (Get-Item "dist/MyRacingData-Telemetry.exe").Length / 1MB
-            Write-Host "  Size: $([math]::Round($size, 2)) MB"
-          } else {
-            Write-Host "✗ Build failed - exe not found"
-            exit 1
-          }
-      
-      - name: Create distribution package
-        run: |
-          New-Item -ItemType Directory -Force -Path dist/package
-          Copy-Item dist/MyRacingData-Telemetry.exe dist/package/
-          Copy-Item README.md dist/package/README.txt
-          
-          @"
-# MyRacingData Telemetry Capture Configuration
-# Copy this to: C:\Users\YourName\.myracingdata\config.json
 
-{
-  "api_url": "https://95.216.5.123/api/v1",
-  "ws_url": "wss://95.216.5.123/api/v1/ws",
-  "api_key": "YOUR_API_KEY_HERE",
-  "update_rate_hz": 60,
-  "auto_start": true,
-  "minimize_to_tray": true,
-  "enable_logging": true
-}
-"@ | Out-File -FilePath dist/package/config.ini.example -Encoding UTF8
-          
-          Compress-Archive -Path dist/package/* -DestinationPath MyRacingData-Telemetry-v1.0.0-Windows.zip
-      
-      - name: Upload executable artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: MyRacingData-Telemetry-Windows-Executable
-          path: dist/MyRacingData-Telemetry.exe
-          retention-days: 90
-      
-      - name: Upload distribution package
-        uses: actions/upload-artifact@v4
-        with:
-          name: MyRacingData-Telemetry-Windows-Package
-          path: MyRacingData-Telemetry-v1.0.0-Windows.zip
-          retention-days: 90
-      
-      - name: Create Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            dist/MyRacingData-Telemetry.exe
-            MyRacingData-Telemetry-v1.0.0-Windows.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-windows.txt
+        pip install pyinstaller
+
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller myracingdata.spec
+
+    - name: List dist contents
+      run: |
+        dir dist
+
+    - name: Upload executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: MyRacingData-Telemetry-Windows
+        path: dist/MyRacingData.exe
+        retention-days: 30
