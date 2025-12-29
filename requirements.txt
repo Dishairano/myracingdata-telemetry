@@ -6,8 +6,9 @@ websocket-client>=1.6.4
 requests>=2.31.0
 
 # Game integration
-pywin32>=306  # For Windows shared memory access
+pywin32>=306  # For Windows shared memory access (Assetto Corsa)
 mmap-backed-arrays>=0.3.0  # Fast memory mapping
+accapi>=0.1.0  # Assetto Corsa Competizione UDP telemetry
 
 # System tray & UI
 pystray>=0.19.5
