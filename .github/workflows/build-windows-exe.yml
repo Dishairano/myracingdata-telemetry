@@ -38,5 +38,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: MyRacingData-Telemetry-Windows
-        path: dist/MyRacingData.exe
+        path: dist/MyRacingData-Telemetry.exe
         retention-days: 30
