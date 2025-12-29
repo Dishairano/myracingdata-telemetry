@@ -276,14 +276,17 @@ class LoginWindow:
     def login_with_api_key(self):
         """Login with API key directly"""
         api_key = self.api_key_entry.get().strip()
-        
+
         if not api_key:
             messagebox.showerror("Error", "Please enter your API key")
             return
-        
+
         # Validate API key
         try:
-            api_url = self.config.get('api_url', 'https://myracingdata.com/api/v1')
+            # Force use of domain URL (override any cached IP-based URL)
+            api_url = 'https://myracingdata.com/api/v1'
+            self.config.set('api_url', api_url)
+            self.config.set('ws_url', 'wss://myracingdata.com/api/v1/ws')
             
             response = requests.get(
                 f"{api_url}/users/me",
@@ -338,9 +341,11 @@ class LoginWindow:
                 
                 api_key = auth_data.get('api_key')
                 if api_key:
-                    # Validate saved key
-                    api_url = self.config.get('api_url', 'https://myracingdata.com/api/v1')
-                    
+                    # Validate saved key - force use of domain URL
+                    api_url = 'https://myracingdata.com/api/v1'
+                    self.config.set('api_url', api_url)
+                    self.config.set('ws_url', 'wss://myracingdata.com/api/v1/ws')
+
                     response = requests.get(
                         f"{api_url}/users/me",
                         headers={'Authorization': f'Bearer {api_key}'},
