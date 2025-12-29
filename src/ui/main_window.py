@@ -300,19 +300,31 @@ class MainWindow:
         
     def start_capture(self):
         """Start telemetry capture"""
-        success = self.capture_app.start()
-        
+        # Create callback to pipe debug output to GUI log
+        def debug_log(msg):
+            # Determine log level from message content
+            if '✓' in msg or 'success' in msg.lower():
+                level = 'success'
+            elif '❌' in msg or 'error' in msg.lower() or 'failed' in msg.lower():
+                level = 'error'
+            elif '⚠' in msg or 'warning' in msg.lower():
+                level = 'warning'
+            else:
+                level = 'info'
+
+            self.log(msg, level)
+
+        success = self.capture_app.start(log_callback=debug_log)
+
         if success:
             self.start_button.config(state=tk.DISABLED)
             self.stop_button.config(state=tk.NORMAL)
             self.status_indicator.config(fg=self.colors['success'])
             self.status_text.config(text="Running", fg=self.colors['success'])
-            self.log("Telemetry capture started", 'success')
         else:
-            self.log("Failed to start capture - check API key configuration", 'error')
             messagebox.showerror(
                 "Start Failed",
-                "Failed to start capture.\n\nPlease check:\n- API key is configured\n- Internet connection"
+                "Failed to start capture.\n\nCheck the Activity Log for details."
             )
             
     def stop_capture(self):
