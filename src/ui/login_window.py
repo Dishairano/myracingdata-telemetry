@@ -232,7 +232,7 @@ class LoginWindow:
         
         try:
             # Login to MyRacingData API
-            api_url = self.config.get('api_url', 'https://95.216.5.123/api/v1')
+            api_url = self.config.get('api_url', 'https://myracingdata.com/api/v1')
             
             response = requests.post(
                 f"{api_url}/auth/login",
@@ -283,7 +283,7 @@ class LoginWindow:
         
         # Validate API key
         try:
-            api_url = self.config.get('api_url', 'https://95.216.5.123/api/v1')
+            api_url = self.config.get('api_url', 'https://myracingdata.com/api/v1')
             
             response = requests.get(
                 f"{api_url}/users/me",
@@ -339,7 +339,7 @@ class LoginWindow:
                 api_key = auth_data.get('api_key')
                 if api_key:
                     # Validate saved key
-                    api_url = self.config.get('api_url', 'https://95.216.5.123/api/v1')
+                    api_url = self.config.get('api_url', 'https://myracingdata.com/api/v1')
                     
                     response = requests.get(
                         f"{api_url}/users/me",
@@ -363,12 +363,12 @@ class LoginWindow:
     def open_register(self):
         """Open registration page"""
         import webbrowser
-        webbrowser.open('https://95.216.5.123/auth/register')
-        
+        webbrowser.open('https://myracingdata.com/auth/register')
+
     def open_api_key_page(self):
         """Open API key page"""
         import webbrowser
-        webbrowser.open('https://95.216.5.123/settings/api-keys')
+        webbrowser.open('https://myracingdata.com/profile')
         
     def run(self):
         """Run the login window"""

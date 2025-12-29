@@ -15,8 +15,8 @@ class Config:
     
     # Default settings
     DEFAULTS = {
-        'api_url': 'https://95.216.5.123/api/v1',
-        'ws_url': 'wss://95.216.5.123/api/v1/ws',
+        'api_url': 'https://myracingdata.com/api/v1',
+        'ws_url': 'wss://myracingdata.com/api/v1/ws',
         'api_key': '',
         'update_rate_hz': 60,
         'buffer_size': 1000,
