@@ -27,15 +27,10 @@ class WebSocketClient:
     def connect(self):
         """Connect to WebSocket server"""
         try:
-            # Add API key to URL
-            ws_url = f"{self.url}?api_key={self.api_key[:20]}..."
-            print(f"DEBUG WS: Connecting to: {ws_url}")
-
-            # Use full API key for actual connection
-            full_ws_url = f"{self.url}?api_key={self.api_key}"
+            print(f"DEBUG WS: Connecting to: {self.url}")
 
             self.ws = websocket.WebSocketApp(
-                full_ws_url,
+                self.url,
                 on_open=self._on_open,
                 on_message=self._on_message,
                 on_error=self._on_error,

@@ -40,6 +40,7 @@ class TelemetryCapture:
         self.capture_thread = None
         self.data_count = 0
         self.last_status_update = 0
+        self.session_id = None
 
         print(f"🏁 MyRacingData Telemetry Capture v{Config.VERSION}")
         print("=" * 60)
@@ -49,6 +50,9 @@ class TelemetryCapture:
     
     def start(self, log_callback=None):
         """Start telemetry capture"""
+        import requests
+        import json as json_module
+
         def log(msg):
             print(msg)
             if log_callback:
@@ -68,17 +72,63 @@ class TelemetryCapture:
         if self.config.api_key:
             log(f"DEBUG: API key value: {self.config.api_key[:20]}...")
         log(f"DEBUG: API URL: {self.config.api_url}")
-        log(f"DEBUG: WS URL: {self.config.ws_url}")
 
         if not self.config.api_key:
             log("❌ No API key configured!")
             log("   Please set your API key in the settings")
             return False
 
-        # Connect to WebSocket
-        log(f"🔌 Connecting to {self.config.ws_url}...")
+        # STEP 1: Create a new session
+        log("📝 Creating new telemetry session...")
+        try:
+            session_response = requests.post(
+                f"{self.config.api_url}/sessions",
+                headers={
+                    'Authorization': f'Bearer {self.config.api_key}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'track_name': 'Unknown',  # Will be updated when game detected
+                    'car_name': 'Unknown',
+                    'game': 'unknown'
+                },
+                verify=False,
+                timeout=10
+            )
+
+            log(f"DEBUG: Session creation response status: {session_response.status_code}")
+
+            if session_response.status_code != 201:
+                log(f"❌ Failed to create session: {session_response.status_code}")
+                log(f"   Response: {session_response.text}")
+                return False
+
+            session_data = session_response.json()
+            session_id = session_data.get('session', {}).get('id') or session_data.get('id')
+
+            if not session_id:
+                log(f"❌ No session ID in response")
+                log(f"   Response: {session_response.text}")
+                return False
+
+            log(f"✓ Session created: {session_id}")
+
+            # Store session ID
+            self.session_id = session_id
+
+        except Exception as e:
+            log(f"❌ Session creation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+        # STEP 2: Connect to WebSocket with session ID
+        ws_url = f"{self.config.ws_url}/session/{session_id}"
+        log(f"DEBUG: WebSocket URL: {ws_url}")
+        log(f"🔌 Connecting to WebSocket...")
+
         self.ws_client = WebSocketClient(
-            self.config.ws_url,
+            ws_url,
             self.config.api_key
         )
 
@@ -87,7 +137,7 @@ class TelemetryCapture:
         log(f"DEBUG: WebSocket connection result: {connection_result}")
 
         if not connection_result:
-            log("❌ Failed to connect to server")
+            log("❌ Failed to connect to WebSocket server")
             log(f"DEBUG: WebSocket client connected state: {self.ws_client.connected}")
             return False
         
@@ -102,6 +152,8 @@ class TelemetryCapture:
     
     def stop(self):
         """Stop telemetry capture"""
+        import requests
+
         if not self.running:
             return
 
@@ -119,6 +171,21 @@ class TelemetryCapture:
         # Disconnect WebSocket
         if self.ws_client:
             self.ws_client.disconnect()
+
+        # End session on server
+        if hasattr(self, 'session_id') and self.session_id:
+            try:
+                print(f"📝 Ending session {self.session_id}...")
+                end_response = requests.patch(
+                    f"{self.config.api_url}/sessions/{self.session_id}/end",
+                    headers={'Authorization': f'Bearer {self.config.api_key}'},
+                    verify=False,
+                    timeout=5
+                )
+                if end_response.status_code == 200:
+                    print("✓ Session ended on server")
+            except Exception as e:
+                print(f"⚠ Failed to end session on server: {e}")
 
         self.active_game = None
         print("✓ Stopped")
