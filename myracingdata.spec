@@ -19,27 +19,27 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('PIL')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
-# Collect websocket-client
+# Critical: Force websocket-client to be included
+# The package is called 'websocket-client' but imports as 'websocket'
+print("=" * 60)
+print("Collecting websocket-client dependencies...")
+print("=" * 60)
+
+# Method 1: Try collect_all on the package name
 try:
-    tmp_ret = collect_all('websocket')
-    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-    print("✓ Collected websocket-client")
+    from PyInstaller.utils.hooks import copy_metadata
+    datas += copy_metadata('websocket-client')
+    print("✓ Collected websocket-client metadata")
 except Exception as e:
-    print(f"Warning: websocket-client collection failed: {e}")
+    print(f"Warning: websocket-client metadata collection failed: {e}")
 
-# Collect accapi (ACC telemetry)
-try:
-    tmp_ret = collect_all('accapi')
-    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-except Exception:
-    print("Warning: accapi not found, ACC support will be disabled")
-
-# Add more hidden imports
-hiddenimports += [
+# Method 2: Explicitly add ALL websocket modules to hiddenimports
+websocket_modules = [
     'websocket',
     'websocket._abnf',
     'websocket._app',
     'websocket._core',
+    'websocket._cookiejar',
     'websocket._exceptions',
     'websocket._handshake',
     'websocket._http',
@@ -48,7 +48,20 @@ hiddenimports += [
     'websocket._ssl_compat',
     'websocket._url',
     'websocket._utils',
+    '_socket',
+    'ssl',
 ]
+
+hiddenimports += websocket_modules
+print(f"✓ Added {len(websocket_modules)} websocket modules to hiddenimports")
+
+# Collect accapi (ACC telemetry)
+try:
+    tmp_ret = collect_all('accapi')
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+    print("✓ Collected accapi")
+except Exception:
+    print("⚠ accapi not found, ACC support will be disabled")
 
 a = Analysis(
     ['src/main.py'],
@@ -56,7 +69,7 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    hookspath=[],
+    hookspath=['hooks'],  # Use our custom hooks directory
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
