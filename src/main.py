@@ -41,6 +41,7 @@ class TelemetryCapture:
         self.data_count = 0
         self.last_status_update = 0
         self.session_id = None
+        self.log_callback = None  # Store callback for use in capture loop
 
         print(f"🏁 MyRacingData Telemetry Capture v{Config.VERSION}")
         print("=" * 60)
@@ -52,6 +53,9 @@ class TelemetryCapture:
         """Start telemetry capture"""
         import requests
         import json as json_module
+
+        # Store callback for use in capture loop
+        self.log_callback = log_callback
 
         def log(msg):
             print(msg)
@@ -205,12 +209,13 @@ class TelemetryCapture:
                 if self.ws_client and self.ws_client.is_connected:
                     self.ws_client.send_telemetry(data)
                     self.data_count += 1
-                    
+
                     # Print status every 5 seconds
                     if time.time() - self.last_status_update > 5:
-                        print(f"📊 Capturing: {data['game']} | "
-                              f"Speed: {data.get('speed_kmh', 0):.1f} km/h | "
-                              f"Packets sent: {self.data_count}")
+                        status_msg = (f"📊 Capturing: {data['game']} | "
+                                     f"Speed: {data.get('speed_kmh', 0):.1f} km/h | "
+                                     f"Packets sent: {self.data_count}")
+                        self._log(status_msg)
                         self.last_status_update = time.time()
             
             # Sleep to maintain update rate
@@ -218,6 +223,12 @@ class TelemetryCapture:
             sleep_time = max(0, update_interval - elapsed)
             time.sleep(sleep_time)
     
+    def _log(self, msg):
+        """Helper to log to both console and GUI"""
+        print(msg)
+        if self.log_callback:
+            self.log_callback(msg)
+
     def _read_telemetry(self):
         """Try to read telemetry from games"""
 
@@ -229,7 +240,7 @@ class TelemetryCapture:
             # Connection lost
             self.ac.disconnect()
             self.active_game = None
-            print("⚠ Assetto Corsa disconnected")
+            self._log("⚠ Assetto Corsa disconnected")
 
         elif self.active_game == 'acc' and self.acc and self.acc.is_connected():
             data = self.acc.get_latest_telemetry()
@@ -238,7 +249,7 @@ class TelemetryCapture:
             # Connection lost
             self.acc.stop()
             self.active_game = None
-            print("⚠ Assetto Corsa Competizione disconnected")
+            self._log("⚠ Assetto Corsa Competizione disconnected")
 
         elif self.active_game == 'lmu' and self.lmu.is_connected:
             data = self.lmu.read()
@@ -247,26 +258,26 @@ class TelemetryCapture:
             # Connection lost
             self.lmu.disconnect()
             self.active_game = None
-            print("⚠ Le Mans Ultimate disconnected")
+            self._log("⚠ Le Mans Ultimate disconnected")
 
         # No active game, try to detect one
         else:
             # Try Assetto Corsa
             if self.ac.connect():
                 self.active_game = 'ac'
-                print("✓ Assetto Corsa detected!")
+                self._log("✓ Assetto Corsa detected!")
                 return None
 
             # Try ACC (only if available)
             if ACC_AVAILABLE and self.acc and self.acc.start():
                 self.active_game = 'acc'
-                print("✓ Assetto Corsa Competizione detected!")
+                self._log("✓ Assetto Corsa Competizione detected!")
                 return None
 
             # Try Le Mans Ultimate
             if self.lmu.connect():
                 self.active_game = 'lmu'
-                print("✓ Le Mans Ultimate detected!")
+                self._log("✓ Le Mans Ultimate detected!")
                 return None
 
         return None
