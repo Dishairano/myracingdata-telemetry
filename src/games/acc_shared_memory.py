@@ -80,14 +80,20 @@ class ACCSharedMemoryReader:
         if not self.connected:
             return None
         try:
+            # Read graphics first to check session status — when the driver
+            # leaves to the menu/exits, status -> AC_OFF while the physics packet
+            # id just freezes, so this is what lets us detect "session finished".
+            self.graphics_map.seek(0)
+            gfx = ACCGraphics.from_buffer_copy(self.graphics_map.read(ctypes.sizeof(ACCGraphics)))
+            if gfx.status == 0:
+                self.connected = False
+                return None
+
             self.physics_map.seek(0)
             phys = ACCPhysics.from_buffer_copy(self.physics_map.read(ctypes.sizeof(ACCPhysics)))
             if phys.packetId == self.last_packet_id:
                 return None
             self.last_packet_id = phys.packetId
-
-            self.graphics_map.seek(0)
-            gfx = ACCGraphics.from_buffer_copy(self.graphics_map.read(ctypes.sizeof(ACCGraphics)))
             return self._parse(phys, gfx)
         except Exception as e:
             print(f"Error reading ACC telemetry: {e}")

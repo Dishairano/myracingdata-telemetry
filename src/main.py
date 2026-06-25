@@ -56,6 +56,7 @@ class TelemetryCapture:
         self.running = False
         self.capture_thread = None
         self.sender_thread = None
+        self.monitor_thread = None
         self.data_count = 0
         self.last_status_update = 0
         self.session_id = None
@@ -109,80 +110,102 @@ class TelemetryCapture:
             log("   Please set your API key in the settings")
             return False
 
-        # STEP 1: Create a new session
-        log("📝 Creating new telemetry session...")
-        try:
-            session_response = requests.post(
-                f"{self.config.api_url}/sessions",
-                headers={
-                    'Authorization': f'Bearer {self.config.api_key}',
-                    'Content-Type': 'application/json'
-                },
-                json={
-                    'track_name': 'Unknown',  # Will be updated when game detected
-                    'car_name': 'Unknown',
-                    'game': 'unknown'
-                },
-                verify=False,
-                timeout=10
-            )
+        # No session is created up front. The monitor thread creates one (with
+        # the real track/car) when a sim session goes live, and ends it when the
+        # sim leaves to the menu/exits — so each on-track session is its own
+        # backend session.
+        self.session_id = None
+        self.ws_client = None
 
-            log(f"DEBUG: Session creation response status: {session_response.status_code}")
-
-            if session_response.status_code != 201:
-                log(f"❌ Failed to create session: {session_response.status_code}")
-                log(f"   Response: {session_response.text}")
-                return False
-
-            session_data = session_response.json()
-            session_id = session_data.get('session', {}).get('id') or session_data.get('id')
-
-            if not session_id:
-                log(f"❌ No session ID in response")
-                log(f"   Response: {session_response.text}")
-                return False
-
-            log(f"✓ Session created: {session_id}")
-
-            # Store session ID
-            self.session_id = session_id
-
-        except Exception as e:
-            log(f"❌ Session creation failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-        # STEP 2: Connect to WebSocket with session ID
-        ws_url = f"{self.config.ws_url}/session/{session_id}"
-        log(f"DEBUG: WebSocket URL: {ws_url}")
-        log(f"🔌 Connecting to WebSocket...")
-
-        self.ws_client = WebSocketClient(
-            ws_url,
-            self.config.api_key
-        )
-
-        log("DEBUG: Attempting WebSocket connection...")
-        connection_result = self.ws_client.connect()
-        log(f"DEBUG: WebSocket connection result: {connection_result}")
-
-        if not connection_result:
-            log("❌ Failed to connect to WebSocket server")
-            log(f"DEBUG: WebSocket client connected state: {self.ws_client.connected}")
-            return False
-        
-        # Start capture (reader) + sender threads
         self.running = True
         self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.capture_thread.start()
         self.sender_thread = threading.Thread(target=self._sender_loop, daemon=True)
         self.sender_thread.start()
+        self.monitor_thread = threading.Thread(target=self._session_monitor, daemon=True)
+        self.monitor_thread.start()
 
-        log("✓ Telemetry capture started")
-        log("   Waiting for game to start...")
+        log("✓ Capture started — waiting for a sim session…")
         return True
-    
+
+    def _session_monitor(self):
+        """Create/end a backend session as the sim enters/leaves a live session.
+
+        active_game is set by the reader when a sim session is live and cleared
+        when it ends (sim status goes OFF). We mirror that into one backend
+        session per on-track session.
+        """
+        while self.running:
+            time.sleep(0.5)
+            try:
+                if self.active_game and not self.session_id:
+                    self._begin_session()
+                elif not self.active_game and self.session_id:
+                    self._end_session('sim session ended')
+            except Exception as e:
+                self._log(f"⚠ Session monitor error: {e}")
+
+    def _begin_session(self):
+        """Create a backend session for the currently-detected sim + connect WS."""
+        import requests
+        reader = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu}.get(self.active_game)
+        track = getattr(reader, 'track_name', None) or 'Unknown'
+        car = getattr(reader, 'car_name', None) or 'Unknown'
+        game = self.active_game
+
+        try:
+            resp = requests.post(
+                f"{self.config.api_url}/sessions",
+                headers={'Authorization': f'Bearer {self.config.api_key}', 'Content-Type': 'application/json'},
+                json={'track_name': track, 'car_name': car, 'game': game},
+                verify=False, timeout=10,
+            )
+            if resp.status_code != 201:
+                self._log(f"❌ Failed to create session: {resp.status_code}")
+                return
+            data = resp.json()
+            sid = data.get('session', {}).get('id') or data.get('id')
+            if not sid:
+                return
+
+            ws = WebSocketClient(f"{self.config.ws_url}/session/{sid}", self.config.api_key)
+            if not ws.connect():
+                self._log("❌ WebSocket connection failed")
+                return
+
+            with self._buf_lock:
+                self._send_buf.clear()  # drop any pre-session frames
+            self.session_id = sid
+            self.ws_client = ws
+            self.data_count = 0
+            self.last_status_update = 0
+            self._log(f"🏁 Session started — {track} · {car}")
+        except Exception as e:
+            self._log(f"❌ Session start failed: {e}")
+
+    def _end_session(self, reason=''):
+        """End the current backend session and close its WebSocket."""
+        import requests
+        sid = self.session_id
+        ws = self.ws_client
+        self.session_id = None
+        self.ws_client = None
+        if ws:
+            try:
+                ws.disconnect()
+            except Exception:
+                pass
+        if sid:
+            try:
+                requests.patch(
+                    f"{self.config.api_url}/sessions/{sid}/end",
+                    headers={'Authorization': f'Bearer {self.config.api_key}'},
+                    verify=False, timeout=5,
+                )
+            except Exception:
+                pass
+            self._log(f"⏹ Session ended ({reason}) — {self.data_count:,} samples")
+
     def stop(self):
         """Stop telemetry capture"""
         import requests
@@ -193,6 +216,10 @@ class TelemetryCapture:
         print("⏹ Stopping telemetry capture...")
         self.running = False
 
+        # End the active backend session (if any)
+        if self.session_id:
+            self._end_session('stopped')
+
         # Disconnect games
         if self.ac.is_connected:
             self.ac.disconnect()
@@ -200,25 +227,6 @@ class TelemetryCapture:
             self.lmu.disconnect()
         if self.acc.is_connected:
             self.acc.disconnect()
-
-        # Disconnect WebSocket
-        if self.ws_client:
-            self.ws_client.disconnect()
-
-        # End session on server
-        if hasattr(self, 'session_id') and self.session_id:
-            try:
-                print(f"📝 Ending session {self.session_id}...")
-                end_response = requests.patch(
-                    f"{self.config.api_url}/sessions/{self.session_id}/end",
-                    headers={'Authorization': f'Bearer {self.config.api_key}'},
-                    verify=False,
-                    timeout=5
-                )
-                if end_response.status_code == 200:
-                    print("✓ Session ended on server")
-            except Exception as e:
-                print(f"⚠ Failed to end session on server: {e}")
 
         self.active_game = None
         print("✓ Stopped")
@@ -257,8 +265,11 @@ class TelemetryCapture:
                 batch = list(self._send_buf)
                 self._send_buf.clear()
 
-            if self.ws_client and self.ws_client.is_connected:
-                self.ws_client.send_batch(batch)
+            # Snapshot the client — the monitor thread may swap/clear it between
+            # sessions. If there's no active session, the batch is simply dropped.
+            ws = self.ws_client
+            if ws and ws.is_connected:
+                ws.send_batch(batch)
                 self.data_count += len(batch)
 
                 if time.time() - self.last_status_update > 5:

@@ -160,7 +160,12 @@ class ACTelemetry:
             self.graphics_map.seek(0)
             graphics_raw = self.graphics_map.read(ctypes.sizeof(ACGraphics))
             graphics = ACGraphics.from_buffer_copy(graphics_raw)
-            
+
+            # Left the session (menu/exit) — lets the monitor end the session.
+            if graphics.AC_STATUS == 0:
+                self.connected = False
+                return None
+
             # Check if data is updated
             if physics.packetId == self.last_packet_id:
                 return None
