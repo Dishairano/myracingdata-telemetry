@@ -8,6 +8,11 @@ import time
 import threading
 from pathlib import Path
 
+import urllib3
+# The API has a valid cert; requests still uses verify=False (legacy), which
+# otherwise floods the log with InsecureRequestWarning. Quiet it.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -226,33 +231,21 @@ class TelemetryCapture:
     def _read_telemetry(self):
         """Try to read telemetry from games"""
 
-        # If we have an active game, try to read from it
-        if self.active_game == 'ac' and self.ac.is_connected:
-            data = self.ac.read()
-            if data:
-                return data
-            # Connection lost
-            self.ac.disconnect()
+        # If we have an active game, keep reading from it. read() returning None
+        # just means "no new frame this tick" — the sim hasn't advanced its
+        # packet id yet (e.g. car in the menu/garage). That is NOT a disconnect,
+        # so we keep polling. A reader only flips is_connected to False on an
+        # actual shared-memory error (sim closed), which sends us back to detect.
+        readers = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu}
+        labels = {'ac': 'Assetto Corsa', 'acc': 'Assetto Corsa Competizione',
+                  'lmu': 'Le Mans Ultimate'}
+        if self.active_game in readers:
+            reader = readers[self.active_game]
+            if reader.is_connected:
+                return reader.read()
+            self._log(f"⚠ {labels[self.active_game]} disconnected")
             self.active_game = None
-            self._log("⚠ Assetto Corsa disconnected")
-
-        elif self.active_game == 'acc' and self.acc.is_connected:
-            data = self.acc.read()
-            if data:
-                return data
-            # Connection lost
-            self.acc.disconnect()
-            self.active_game = None
-            self._log("⚠ Assetto Corsa Competizione disconnected")
-
-        elif self.active_game == 'lmu' and self.lmu.is_connected:
-            data = self.lmu.read()
-            if data:
-                return data
-            # Connection lost
-            self.lmu.disconnect()
-            self.active_game = None
-            self._log("⚠ Le Mans Ultimate disconnected")
+            return None
 
         # No active game, try to detect one
         else:
