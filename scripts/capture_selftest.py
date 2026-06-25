@@ -46,7 +46,11 @@ def main():
     ap.add_argument("--db", required=True, help="path to the backend's race_engineer.db")
     ap.add_argument("--frames", type=int, default=60)
     ap.add_argument("--hz", type=float, default=30.0)
+    ap.add_argument("--game", default="ac", choices=["ac", "acc"],
+                    help="which normalizer path to exercise (both consume AC-shaped frames)")
     args = ap.parse_args()
+
+    game_names = {"ac": "assetto_corsa", "acc": "assetto_corsa_competizione"}
 
     email = f"selftest+{uuid.uuid4().hex[:8]}@myracingdata.test"
 
@@ -66,7 +70,7 @@ def main():
     r = requests.post(f"{args.api}/sessions",
                       headers={"Authorization": f"Bearer {token}"},
                       json={"track_name": "Spa", "car_name": "Ferrari 488 GT3",
-                            "game": "assetto_corsa"}, timeout=10)
+                            "game": game_names[args.game]}, timeout=10)
     if r.status_code != 201:
         fail(f"create session -> {r.status_code}: {r.text}")
     body = r.json()
@@ -85,7 +89,7 @@ def main():
     sent = 0
     interval = 1.0 / args.hz
     for _ in range(args.frames):
-        frame = normalize("ac", source.read())
+        frame = normalize(args.game, source.read())
         if frame and ws.send_telemetry(frame):
             sent += 1
         time.sleep(interval)
