@@ -14,18 +14,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config import Config
 from capture.canonical import normalize
 from games.ac import ACTelemetry
+from games.acc_shared_memory import ACCSharedMemoryReader
 from games.lmu import LMUTelemetry
 from network.websocket_client import WebSocketClient
 from ui.system_tray import SystemTrayApp
-
-# Try to import ACC - it's optional
-try:
-    from games.acc import ACCTelemetryReader
-    ACC_AVAILABLE = True
-except ImportError:
-    ACCTelemetryReader = None
-    ACC_AVAILABLE = False
-    print("⚠ ACC support not available (accapi not installed)")
 
 class TelemetryCapture:
     """Main telemetry capture application"""
@@ -34,7 +26,7 @@ class TelemetryCapture:
         self.config = Config()
         self.ac = ACTelemetry()
         self.lmu = LMUTelemetry()
-        self.acc = ACCTelemetryReader() if ACC_AVAILABLE else None
+        self.acc = ACCSharedMemoryReader()
         self.ws_client = None
         self.active_game = None
         self.running = False
@@ -48,7 +40,7 @@ class TelemetryCapture:
         print("=" * 60)
         print(f"✓ Assetto Corsa support: Enabled")
         print(f"✓ Le Mans Ultimate support: Enabled")
-        print(f"{'✓' if ACC_AVAILABLE else '✗'} Assetto Corsa Competizione support: {'Enabled' if ACC_AVAILABLE else 'Disabled (accapi not installed)'}")
+        print(f"✓ Assetto Corsa Competizione support: Enabled (shared memory)")
     
     def start(self, log_callback=None):
         """Start telemetry capture"""
@@ -170,8 +162,8 @@ class TelemetryCapture:
             self.ac.disconnect()
         if self.lmu.is_connected:
             self.lmu.disconnect()
-        if self.acc and self.acc.is_connected():
-            self.acc.stop()
+        if self.acc.is_connected:
+            self.acc.disconnect()
 
         # Disconnect WebSocket
         if self.ws_client:
@@ -244,12 +236,12 @@ class TelemetryCapture:
             self.active_game = None
             self._log("⚠ Assetto Corsa disconnected")
 
-        elif self.active_game == 'acc' and self.acc and self.acc.is_connected():
-            data = self.acc.get_latest_telemetry()
+        elif self.active_game == 'acc' and self.acc.is_connected:
+            data = self.acc.read()
             if data:
                 return data
             # Connection lost
-            self.acc.stop()
+            self.acc.disconnect()
             self.active_game = None
             self._log("⚠ Assetto Corsa Competizione disconnected")
 
@@ -270,8 +262,8 @@ class TelemetryCapture:
                 self._log("✓ Assetto Corsa detected!")
                 return None
 
-            # Try ACC (only if available)
-            if ACC_AVAILABLE and self.acc and self.acc.start():
+            # Try ACC (shared memory)
+            if self.acc.connect():
                 self.active_game = 'acc'
                 self._log("✓ Assetto Corsa Competizione detected!")
                 return None

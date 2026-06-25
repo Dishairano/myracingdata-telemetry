@@ -80,8 +80,11 @@ def _finalize(game_key, fields):
     return frame
 
 
-def normalize_ac(raw):
-    """Map Assetto Corsa shared-memory output (games/ac.py) onto the contract."""
+def _map_ac_shape(raw):
+    """Map an AC/ACC shared-memory frame (games/ac.py shape) to contract fields.
+
+    Shared by AC and the ACC shared-memory reader, which emit the same shape.
+    """
     tires = raw.get("tires", [])
     brake_temps = raw.get("brakes", {}).get("temps", [])
     lap = raw.get("lap", {})
@@ -90,7 +93,7 @@ def normalize_ac(raw):
     def tyre(i, key):
         return tires[i].get(key) if i < len(tires) else None
 
-    return _finalize("ac", {
+    return {
         "lap_number": lap.get("current", 0),
         "speed_kmh": raw.get("speed_kmh", 0.0),
         "rpm": int(raw.get("rpm", 0)),
@@ -115,7 +118,12 @@ def normalize_ac(raw):
         "fuel_remaining_liters": raw.get("fuel"),
         "drs_available": bool(drs.get("available", 0)),
         "drs_enabled": bool(drs.get("enabled", 0)),
-    })
+    }
+
+
+def normalize_ac(raw):
+    """Map Assetto Corsa shared-memory output (games/ac.py) onto the contract."""
+    return _finalize("ac", _map_ac_shape(raw))
 
 
 def normalize_lmu(raw):
@@ -156,12 +164,16 @@ def normalize_lmu(raw):
 
 
 def normalize_acc(raw):
-    """Map ACC broadcasting output (games/acc.py) onto the contract.
+    """Map ACC output onto the contract, from either ACC source.
 
-    NOTE: ACC's UDP broadcasting feed carries no driver inputs (throttle/brake/
-    steering) or tyre data - those live in ACC's shared memory. Until the reader
-    is moved to shared memory, those fields stay at their defaults.
+    The shared-memory reader (games/acc_shared_memory.py) emits the same shape as
+    AC and carries full driver inputs, so it goes through the shared AC mapping.
+    The legacy UDP broadcasting reader (games/acc.py) is timing/leaderboard only
+    — no inputs or tyre data — so those fields stay at their defaults.
     """
+    if "throttle" in raw or "tires" in raw:
+        return _finalize("acc", _map_ac_shape(raw))
+
     return _finalize("acc", {
         "lap_number": raw.get("lap_count", 0),
         "speed_kmh": raw.get("speed_kmh", 0.0),
