@@ -182,5 +182,20 @@ class ACCSharedMemoryReader:
             'track_grip_status': g.trackGripStatus,
             'rain_intensity': g.rainIntensity,
             'current_sector': g.currentSectorIndex,
+            # Live setup / driver aids (the pit-wall car-state readout)
+            'brake_bias': round(p.brakeBias, 4),
+            'tc_setting': g.TC,
+            'tc_cut': g.TCCut,
+            'abs_setting': g.ABS,
+            'engine_map': g.EngineMap,
+            'tyre_compound': str(g.tyreCompound).replace('\x00', '').strip(),
+            # Strategy / fuel
+            'fuel_est_laps': round(g.fuelEstimatedLaps, 2),
+            'session_time_left_ms': round(g.sessionTimeLeft, 0),
+            'pit_window_start': g.PitWindowStart,
+            'pit_window_end': g.PitWindowEnd,
+            # Weather forecast (rain now is rain_intensity above; these are ahead)
+            'rain_10min': g.rainIntensityIn10min,
+            'rain_30min': g.rainIntensityIn30min,
         })
         return ext
