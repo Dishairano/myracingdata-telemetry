@@ -5,7 +5,9 @@
 websocket-client>=1.6.4
 requests>=2.31.0
 
-# System tray & UI
+# Desktop UI (modern web UI in a native window; Edge WebView2 backend on Windows)
+pywebview>=5.0
+# System tray & UI (classic fallback UI)
 pystray>=0.19.5
 Pillow>=10.1.0
 

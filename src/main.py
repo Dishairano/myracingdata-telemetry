@@ -17,6 +17,24 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+
+def _setup_logging():
+    """In a windowed (no-console) build stdout/stderr are None, so the app's
+    print()s would crash. Redirect them to a rotating-ish log file."""
+    try:
+        log_dir = Path.home() / '.myracingdata'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_dir / 'client.log', 'a', buffering=1, encoding='utf-8', errors='replace')
+        if sys.stdout is None:
+            sys.stdout = log_file
+        if sys.stderr is None:
+            sys.stderr = log_file
+    except Exception:
+        pass
+
+
+_setup_logging()
+
 from config import Config
 from capture.canonical import normalize
 from games.ac import ACTelemetry
@@ -41,6 +59,7 @@ class TelemetryCapture:
         self.data_count = 0
         self.last_status_update = 0
         self.session_id = None
+        self.last_frame = None  # most recent normalized frame, for the UI readout
         self.log_callback = None  # Store callback for use in capture loop
 
         # Decouple capture from network: the reader thread samples shared memory
@@ -218,6 +237,7 @@ class TelemetryCapture:
             raw = self._read_telemetry()
             frame = normalize(self.active_game, raw)
             if frame:
+                self.last_frame = frame
                 with self._buf_lock:
                     self._send_buf.append(frame)
 
@@ -307,6 +327,30 @@ class TelemetryCapture:
             'data_count': self.data_count
         }
 
+    def ui_state(self):
+        """Full state for the UI: status + the latest live readout."""
+        f = self.last_frame or {}
+        game_labels = {
+            'ac': 'Assetto Corsa', 'acc': 'Assetto Corsa Competizione', 'lmu': 'Le Mans Ultimate',
+        }
+        return {
+            'running': self.running,
+            'game': self.active_game,
+            'game_label': game_labels.get(self.active_game, '—'),
+            'connected': bool(self.ws_client and self.ws_client.is_connected),
+            'data_count': self.data_count,
+            'session_id': self.session_id,
+            'hz': self.config.update_rate_hz,
+            'has_key': bool(self.config.api_key),
+            'version': Config.VERSION,
+            'speed': round(f.get('speed_kmh', 0) or 0, 1),
+            'rpm': int(f.get('rpm', 0) or 0),
+            'gear': f.get('gear', 0),
+            'throttle': round(f.get('throttle_input', 0) or 0),
+            'brake': round(f.get('brake_input', 0) or 0),
+            'lap': f.get('lap_number', 0),
+        }
+
 def main():
     """Main entry point"""
     
@@ -331,24 +375,33 @@ def main():
             sys.exit(0)
     
     else:
-        # GUI mode
+        # GUI mode — modern PyWebView UI first; fall back to the classic tkinter
+        # UI (then system tray) if the webview runtime isn't available.
+        try:
+            from ui.webview_app import run_webview
+            run_webview(app)
+            app.stop()
+            return
+        except Exception as e:
+            print(f"⚠ Modern UI unavailable ({e}); falling back to classic UI")
+
         try:
             # Login first (one-time)
             from ui.login_window import LoginWindow
-            
+
             login = LoginWindow(app.config)
             authenticated = login.run()
-            
+
             if not authenticated:
                 print("❌ Authentication required to use the application")
                 sys.exit(1)
-            
+
             # Open main window after successful login
             from ui.main_window import MainWindow
-            
+
             gui = MainWindow(app)
             gui.run()
-            
+
         except Exception as e:
             print(f"❌ Failed to start GUI: {e}")
             print("   Falling back to system tray mode...")

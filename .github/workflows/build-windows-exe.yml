@@ -3,9 +3,13 @@ name: Build Windows Executable
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write   # needed to publish a Release on tag
 
 jobs:
   build:
@@ -34,7 +38,7 @@ jobs:
       # silently ships an .exe that crashes at startup (e.g. missing websocket).
       run: |
         set -e
-        python -c "import websocket, requests, pystray, PIL, dotenv, colorama; print('runtime deps OK')"
+        python -c "import websocket, requests, pystray, PIL, dotenv, colorama, webview; print('runtime deps OK')"
 
     - name: Build executable with PyInstaller
       run: |
@@ -50,3 +54,12 @@ jobs:
         name: MyRacingData-Telemetry-Windows
         path: dist/MyRacingData-Telemetry.exe
         retention-days: 30
+
+    # On a version tag, publish a GitHub Release with the .exe so the in-app
+    # auto-updater (and users) have a permanent, login-free download.
+    - name: Publish GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/MyRacingData-Telemetry.exe
+        generate_release_notes: true

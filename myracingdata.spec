@@ -19,6 +19,14 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('PIL')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
+# Collect pywebview (modern UI + its Windows WebView2/edgechromium backend)
+try:
+    tmp_ret = collect_all('webview')
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+    print("[OK] Collected pywebview")
+except Exception as e:
+    print(f"[!] pywebview collection failed: {e}")
+
 # Critical: Force websocket-client to be included
 # The package is called 'websocket-client' but imports as 'websocket'
 print("=" * 60)
@@ -95,7 +103,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,  # Enable console for debug output
+    console=False,  # Windowed app — no terminal (logs go to ~/.myracingdata/client.log)
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
