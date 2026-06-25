@@ -19,13 +19,9 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('PIL')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
-# Collect pywebview (modern UI + its Windows WebView2/edgechromium backend)
-try:
-    tmp_ret = collect_all('webview')
-    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-    print("[OK] Collected pywebview")
-except Exception as e:
-    print(f"[!] pywebview collection failed: {e}")
+# pywebview is handled by hooks/hook-webview.py (forces it into the PYZ as
+# importable bytecode — collect_all here collected it as loose source, which
+# isn't importable in the one-file build).
 
 # Critical: Force websocket-client to be included
 # The package is called 'websocket-client' but imports as 'websocket'
