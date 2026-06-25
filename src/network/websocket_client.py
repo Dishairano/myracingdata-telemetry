@@ -63,10 +63,10 @@ class WebSocketClient:
         self.connected = False
     
     def send_telemetry(self, data: dict):
-        """Send telemetry data to server"""
+        """Send a single telemetry frame to the server"""
         if not self.connected or not self.ws:
             return False
-        
+
         try:
             message = json.dumps({
                 'type': 'telemetry',
@@ -76,6 +76,21 @@ class WebSocketClient:
             return True
         except Exception as e:
             print(f"Error sending telemetry: {e}")
+            return False
+
+    def send_batch(self, frames: list):
+        """Send several telemetry frames in one message (high-rate capture)."""
+        if not self.connected or not self.ws or not frames:
+            return False
+
+        try:
+            self.ws.send(json.dumps({
+                'type': 'telemetry_batch',
+                'data': frames
+            }))
+            return True
+        except Exception as e:
+            print(f"Error sending telemetry batch: {e}")
             return False
     
     def _run(self):

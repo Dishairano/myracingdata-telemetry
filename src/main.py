@@ -6,6 +6,7 @@ Main application entry point
 import sys
 import time
 import threading
+from collections import deque
 from pathlib import Path
 
 import urllib3
@@ -36,10 +37,19 @@ class TelemetryCapture:
         self.active_game = None
         self.running = False
         self.capture_thread = None
+        self.sender_thread = None
         self.data_count = 0
         self.last_status_update = 0
         self.session_id = None
         self.log_callback = None  # Store callback for use in capture loop
+
+        # Decouple capture from network: the reader thread samples shared memory
+        # at the configured Hz into this buffer; the sender thread drains it in
+        # batches. Keeps sample timing steady at 120Hz (a blocking WS send in the
+        # read loop would jitter/drop frames). Bounded so it can't grow forever
+        # if the network stalls.
+        self._send_buf = deque(maxlen=2400)
+        self._buf_lock = threading.Lock()
 
         print(f"🏁 MyRacingData Telemetry Capture v{Config.VERSION}")
         print("=" * 60)
@@ -143,10 +153,12 @@ class TelemetryCapture:
             log(f"DEBUG: WebSocket client connected state: {self.ws_client.connected}")
             return False
         
-        # Start capture thread
+        # Start capture (reader) + sender threads
         self.running = True
         self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.capture_thread.start()
+        self.sender_thread = threading.Thread(target=self._sender_loop, daemon=True)
+        self.sender_thread.start()
 
         log("✓ Telemetry capture started")
         log("   Waiting for game to start...")
@@ -193,35 +205,50 @@ class TelemetryCapture:
         print("✓ Stopped")
     
     def _capture_loop(self):
-        """Main capture loop - runs at configured Hz"""
+        """Reader: sample shared memory at the configured Hz into the buffer.
+
+        Only reads + normalizes (cheap); the network send happens on the sender
+        thread so a blocking WS write can't disturb the sample timing at 120Hz.
+        """
         update_interval = 1.0 / self.config.update_rate_hz
-        
+
         while self.running:
             loop_start = time.time()
-            
-            # Try to detect and read from games, then normalize to the contract
+
             raw = self._read_telemetry()
             frame = normalize(self.active_game, raw)
-
             if frame:
-                # Send to server
-                if self.ws_client and self.ws_client.is_connected:
-                    self.ws_client.send_telemetry(frame)
-                    self.data_count += 1
+                with self._buf_lock:
+                    self._send_buf.append(frame)
 
-                    # Print status every 5 seconds
-                    if time.time() - self.last_status_update > 5:
-                        status_msg = (f"📊 Capturing: {frame['game']} | "
-                                     f"Speed: {frame.get('speed_kmh', 0):.1f} km/h | "
-                                     f"Packets sent: {self.data_count}")
-                        self._log(status_msg)
-                        self.last_status_update = time.time()
-            
-            # Sleep to maintain update rate
             elapsed = time.time() - loop_start
-            sleep_time = max(0, update_interval - elapsed)
-            time.sleep(sleep_time)
-    
+            time.sleep(max(0, update_interval - elapsed))
+
+    def _sender_loop(self):
+        """Sender: drain the buffer and ship it as telemetry batches (~20/s)."""
+        SEND_INTERVAL = 0.05  # seconds between batches
+
+        while self.running:
+            time.sleep(SEND_INTERVAL)
+
+            with self._buf_lock:
+                if not self._send_buf:
+                    continue
+                batch = list(self._send_buf)
+                self._send_buf.clear()
+
+            if self.ws_client and self.ws_client.is_connected:
+                self.ws_client.send_batch(batch)
+                self.data_count += len(batch)
+
+                if time.time() - self.last_status_update > 5:
+                    last = batch[-1]
+                    self._log(f"📊 Capturing: {last['game']} | "
+                              f"Speed: {last.get('speed_kmh', 0):.1f} km/h | "
+                              f"Packets sent: {self.data_count}")
+                    self.last_status_update = time.time()
+
+
     def _log(self, msg):
         """Helper to log to both console and GUI"""
         print(msg)

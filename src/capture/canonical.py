@@ -203,4 +203,8 @@ def normalize(game_key, raw):
     fn = _NORMALIZERS.get(game_key)
     if fn is None:
         return None
-    return fn(raw)
+    frame = fn(raw)
+    # Carry the rich-channel blob (ACC `ext`) through for server-side JSON storage.
+    if frame is not None and isinstance(raw, dict) and raw.get('ext'):
+        frame['ext'] = raw['ext']
+    return frame

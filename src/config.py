@@ -10,7 +10,7 @@ class Config:
     """Application configuration"""
     
     # Version
-    VERSION = "1.2.2"
+    VERSION = "1.3.0"
     APP_NAME = "MyRacingData Telemetry Capture"
     
     # Default settings
@@ -18,7 +18,7 @@ class Config:
         'api_url': 'https://myracingdata.com/api/v1',
         'ws_url': 'wss://myracingdata.com/api/v1/ws',
         'api_key': '',
-        'update_rate_hz': 60,
+        'update_rate_hz': 120,
         'buffer_size': 1000,
         'auto_start': True,
         'minimize_to_tray': True,
