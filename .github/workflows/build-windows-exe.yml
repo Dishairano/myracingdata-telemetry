@@ -21,10 +21,20 @@ jobs:
         python-version: '3.11'
 
     - name: Install dependencies
+      shell: bash
       run: |
+        set -e
         python -m pip install --upgrade pip
         pip install -r requirements-windows.txt
         pip install pyinstaller
+
+    - name: Verify runtime imports are bundled-installed
+      shell: bash
+      # Fail loudly if a dependency didn't install — otherwise PyInstaller
+      # silently ships an .exe that crashes at startup (e.g. missing websocket).
+      run: |
+        set -e
+        python -c "import websocket, requests, pystray, PIL, dotenv, colorama; print('runtime deps OK')"
 
     - name: Build executable with PyInstaller
       run: |
