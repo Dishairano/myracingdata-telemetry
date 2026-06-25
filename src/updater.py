@@ -67,18 +67,39 @@ def download_and_apply(url=None):
 
         with requests.get(url, timeout=180, stream=True) as r:
             r.raise_for_status()
+            expected = int(r.headers.get("Content-Length") or 0)
+            written = 0
             with open(new_exe, "wb") as f:
                 for chunk in r.iter_content(chunk_size=65536):
                     if chunk:
                         f.write(chunk)
+                        written += len(chunk)
 
-        # After this process exits: wait, replace the exe, relaunch, delete self.
+        # Never let a partial/garbage download overwrite the working .exe — a
+        # truncated onefile fails to unpack python311.dll on next launch.
+        if expected and written != expected:
+            os.remove(new_exe)
+            return {"ok": False, "error": f"Incomplete download ({written}/{expected} bytes) — kept current version"}
+        if written < 3_000_000:
+            os.remove(new_exe)
+            return {"ok": False, "error": f"Download too small ({written} bytes) — kept current version"}
+        with open(new_exe, "rb") as f:
+            if f.read(2) != b"MZ":  # valid Windows PE header
+                os.remove(new_exe)
+                return {"ok": False, "error": "Download is not a valid executable — kept current version"}
+
+        # After this process exits: back up the current exe, swap, relaunch.
+        # If the swap leaves no exe in place, restore the backup so the app is
+        # never left unrunnable.
+        backup = os.path.join(folder, "MyRacingData-Telemetry.bak.exe")
         bat = os.path.join(folder, "_mrd_update.bat")
         with open(bat, "w", encoding="ascii") as b:
             b.write(
                 "@echo off\r\n"
                 "ping 127.0.0.1 -n 3 >nul\r\n"
+                f'copy /y "{current}" "{backup}" >nul\r\n'
                 f'move /y "{new_exe}" "{current}" >nul\r\n'
+                f'if not exist "{current}" copy /y "{backup}" "{current}" >nul\r\n'
                 f'start "" "{current}"\r\n'
                 'del "%~f0"\r\n'
             )
