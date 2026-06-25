@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from config import Config
+from capture.canonical import normalize
 from games.ac import ACTelemetry
 from games.lmu import LMUTelemetry
 from network.websocket_client import WebSocketClient
@@ -201,19 +202,20 @@ class TelemetryCapture:
         while self.running:
             loop_start = time.time()
             
-            # Try to detect and read from games
-            data = self._read_telemetry()
-            
-            if data:
+            # Try to detect and read from games, then normalize to the contract
+            raw = self._read_telemetry()
+            frame = normalize(self.active_game, raw)
+
+            if frame:
                 # Send to server
                 if self.ws_client and self.ws_client.is_connected:
-                    self.ws_client.send_telemetry(data)
+                    self.ws_client.send_telemetry(frame)
                     self.data_count += 1
 
                     # Print status every 5 seconds
                     if time.time() - self.last_status_update > 5:
-                        status_msg = (f"📊 Capturing: {data['game']} | "
-                                     f"Speed: {data.get('speed_kmh', 0):.1f} km/h | "
+                        status_msg = (f"📊 Capturing: {frame['game']} | "
+                                     f"Speed: {frame.get('speed_kmh', 0):.1f} km/h | "
                                      f"Packets sent: {self.data_count}")
                         self._log(status_msg)
                         self.last_status_update = time.time()
