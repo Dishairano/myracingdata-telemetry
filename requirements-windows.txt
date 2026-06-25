@@ -5,8 +5,11 @@
 websocket-client>=1.6.4
 requests>=2.31.0
 
-# Desktop UI (modern web UI in a native window; Edge WebView2 backend on Windows)
-pywebview>=5.0
+# Desktop UI (modern web UI in a native window; Edge WebView2 backend on Windows).
+# Pinned <6: pywebview 6.x serializes the native window object to JS and blows
+# the recursion limit on edgechromium ("window.native.…Empty.Empty…"), leaving
+# the window blank. 5.x is stable.
+pywebview>=5.0,<6
 # System tray & UI (classic fallback UI)
 pystray>=0.19.5
 Pillow>=10.1.0

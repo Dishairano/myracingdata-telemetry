@@ -24,7 +24,6 @@ class Api:
 
     def __init__(self, app):
         self.app = app          # TelemetryCapture
-        self.window = None
 
     # --- state ---
     def get_state(self):
@@ -85,12 +84,12 @@ class Api:
 
     # --- window controls (frameless) ---
     def minimize(self):
-        if self.window:
-            self.window.minimize()
+        if webview.windows:
+            webview.windows[0].minimize()
 
     def close(self):
-        if self.window:
-            self.window.destroy()
+        if webview.windows:
+            webview.windows[0].destroy()
 
 
 HTML = r"""<!DOCTYPE html>
@@ -227,7 +226,7 @@ HTML = r"""<!DOCTYPE html>
     const key = await api.get_api_key();
     if (key) { show('main'); } else { show('login'); }
     poll();
-    setInterval(poll, 120);
+    setInterval(poll, 200);
     checkUpdate();
   });
 
@@ -255,7 +254,9 @@ HTML = r"""<!DOCTYPE html>
 
   async function poll(){
     if (!api) return;
-    const s = await api.get_state();
+    let s;
+    try { s = await api.get_state(); } catch(e){ return; }
+    if (!s) return;
     running = s.running;
     $('verText').textContent = 'v' + s.version;
     $('rateText').textContent = s.hz + ' Hz';
@@ -305,7 +306,7 @@ HTML = r"""<!DOCTYPE html>
 def run_webview(app):
     """Launch the desktop UI. Returns False if webview can't start (caller falls back)."""
     api = Api(app)
-    window = webview.create_window(
+    webview.create_window(
         'MyRacingData',
         html=HTML,
         js_api=api,
@@ -316,6 +317,5 @@ def run_webview(app):
         easy_drag=False,
         background_color='#0A0A0F',
     )
-    api.window = window
     webview.start()
     return True
