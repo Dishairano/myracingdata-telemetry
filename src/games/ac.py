@@ -123,6 +123,13 @@ class ACTelemetry:
             # Try to open physics shared memory
             self.physics_map = mmap.mmap(-1, ctypes.sizeof(ACPhysics), "acpmf_physics")
             self.graphics_map = mmap.mmap(-1, ctypes.sizeof(ACGraphics), "acpmf_graphics")
+            # mmap(-1, name) creates the region on Windows even with no sim
+            # running; AC_STATUS (OFF=0) tells us a session is actually live.
+            self.graphics_map.seek(0)
+            graphics = ACGraphics.from_buffer_copy(self.graphics_map.read(ctypes.sizeof(ACGraphics)))
+            if graphics.AC_STATUS == 0:
+                self.disconnect()
+                return False
             self.connected = True
             print("✓ Connected to Assetto Corsa")
             return True

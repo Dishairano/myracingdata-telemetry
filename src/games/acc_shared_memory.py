@@ -45,6 +45,14 @@ class ACCSharedMemoryReader:
             self.graphics_map = mmap.mmap(-1, ctypes.sizeof(ACCGraphics), "acpmf_graphics")
             self.static_map = mmap.mmap(-1, ctypes.sizeof(ACCStatic), "acpmf_static")
 
+            # mmap(-1, name) CREATES the region on Windows if no sim is running,
+            # so "opened" is not "a sim is live". The graphics status (AC_OFF=0,
+            # REPLAY=1, LIVE=2, PAUSE=3) tells us a session is actually running.
+            gfx = ACCGraphics.from_buffer_copy(self.graphics_map.read(ctypes.sizeof(ACCGraphics)))
+            if gfx.status == 0:
+                self.disconnect()
+                return False
+
             static = ACCStatic.from_buffer_copy(self.static_map.read(ctypes.sizeof(ACCStatic)))
             self.car_name = static.carModel or "unknown"
             self.track_name = static.track or "unknown"

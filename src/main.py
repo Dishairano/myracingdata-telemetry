@@ -274,18 +274,20 @@ class TelemetryCapture:
             self.active_game = None
             return None
 
-        # No active game, try to detect one
+        # No active game, try to detect one. ACC (the launch sim) is tried first
+        # so it gets its own full-channel reader; AC and ACC share the same
+        # shared-memory names, so whichever is tried first claims a live session.
         else:
+            # Try ACC (shared memory, full channels)
+            if self.acc.connect():
+                self.active_game = 'acc'
+                self._log("✓ Assetto Corsa Competizione detected!")
+                return None
+
             # Try Assetto Corsa
             if self.ac.connect():
                 self.active_game = 'ac'
                 self._log("✓ Assetto Corsa detected!")
-                return None
-
-            # Try ACC (shared memory)
-            if self.acc.connect():
-                self.active_game = 'acc'
-                self._log("✓ Assetto Corsa Competizione detected!")
                 return None
 
             # Try Le Mans Ultimate
