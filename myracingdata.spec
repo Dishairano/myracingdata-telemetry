@@ -29,7 +29,7 @@ print("=" * 60)
 try:
     from PyInstaller.utils.hooks import copy_metadata
     datas += copy_metadata('websocket-client')
-    print("✓ Collected websocket-client metadata")
+    print("[OK] Collected websocket-client metadata")
 except Exception as e:
     print(f"Warning: websocket-client metadata collection failed: {e}")
 
@@ -53,15 +53,15 @@ websocket_modules = [
 ]
 
 hiddenimports += websocket_modules
-print(f"✓ Added {len(websocket_modules)} websocket modules to hiddenimports")
+print(f"[OK] Added {len(websocket_modules)} websocket modules to hiddenimports")
 
 # Collect accapi (ACC telemetry)
 try:
     tmp_ret = collect_all('accapi')
     datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-    print("✓ Collected accapi")
+    print("[OK] Collected accapi")
 except Exception:
-    print("⚠ accapi not found, ACC support will be disabled")
+    print("[!] accapi not found, ACC support will be disabled")
 
 a = Analysis(
     ['src/main.py'],
