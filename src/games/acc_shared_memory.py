@@ -137,6 +137,18 @@ class ACCSharedMemoryReader:
     def _ext(self, p, g):
         """The rich ACC channels, stored server-side as a JSON blob."""
         ext = {}
+        # Player world position (x, y=elevation, z) for the track reconstruction.
+        pidx = 0
+        try:
+            for i in range(60):
+                if g.carID[i] == g.playerCarID:
+                    pidx = i
+                    break
+        except Exception:
+            pidx = 0
+        ext['pos_x'] = round(g.carCoordinates[pidx][0], 2)
+        ext['pos_y'] = round(g.carCoordinates[pidx][1], 2)
+        ext['pos_z'] = round(g.carCoordinates[pidx][2], 2)
         for i, w in enumerate(WHEELS):
             ext[f'slip_ratio_{w}'] = round(p.slipRatio[i], 4)
             ext[f'slip_angle_{w}'] = round(p.slipAngle[i], 4)
