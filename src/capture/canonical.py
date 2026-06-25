@@ -105,6 +105,7 @@ def _map_ac_shape(raw):
         "current_lap_time_ms": lap.get("current_time_ms", 0),
         "best_lap_time_ms": lap.get("best_time_ms", 0),
         "last_lap_time_ms": lap.get("last_time_ms", 0),
+        "is_valid_lap": bool(raw.get("is_valid_lap", True)),
         "tire_temp_fl": tyre(0, "temp_core"), "tire_temp_fr": tyre(1, "temp_core"),
         "tire_temp_rl": tyre(2, "temp_core"), "tire_temp_rr": tyre(3, "temp_core"),
         "tire_wear_fl": tyre(0, "wear"), "tire_wear_fr": tyre(1, "wear"),

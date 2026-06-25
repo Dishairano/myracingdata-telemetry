@@ -127,6 +127,9 @@ class ACCSharedMemoryReader:
                 'last_time_ms': g.iLastTime,
                 'best_time_ms': g.iBestTime,
             },
+            # 1 while the current lap is clean; ACC flips it to 0 the moment the
+            # lap is invalidated (track limits / cut). Used to mark lap validity.
+            'is_valid_lap': 1 if g.isValidLap == 1 else 0,
             'drs': {'available': 0, 'enabled': 0},
             'ext': self._ext(p, g),
         }
