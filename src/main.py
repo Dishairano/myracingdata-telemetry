@@ -168,7 +168,13 @@ class TelemetryCapture:
             if not sid:
                 return
 
-            ws = WebSocketClient(f"{self.config.ws_url}/session/{sid}", self.config.api_key)
+            # Identify on the WS itself (?key=) — the server authenticates the
+            # connection against the session owner before accepting telemetry.
+            from urllib.parse import quote
+            ws = WebSocketClient(
+                f"{self.config.ws_url}/session/{sid}?key={quote(self.config.api_key or '')}",
+                self.config.api_key,
+            )
             if not ws.connect():
                 self._log("❌ WebSocket connection failed")
                 return
