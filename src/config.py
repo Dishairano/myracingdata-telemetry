@@ -10,7 +10,7 @@ class Config:
     """Application configuration"""
     
     # Version
-    VERSION = "1.5.2"
+    VERSION = "1.5.3"
     APP_NAME = "MyRacingData Telemetry Capture"
     
     # Default settings
