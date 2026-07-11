@@ -158,6 +158,55 @@ def fill_structs(p, g, st):
     g.carCoordinates[0][2] = 410.0 * math.sin(ang) + 120.0 * math.sin(2 * ang)
 
 
+# ---------------------------------------------------------------- tick model
+
+def advance_drive(st, dt, deltas, track_len=TRACK_LEN):
+    """Advance the drive state one tick. Returns True when a lap completed."""
+    st['packet'] += 1
+    st['t_total'] += dt
+
+    target_now = corner_speed_profile(st['pos'], deltas)
+    target_ahead = corner_speed_profile((st['pos'] + 45.0 / track_len) % 1.0, deltas)
+    target = min(target_now, target_ahead)
+    err = target - st['v']
+    if err < -1.5:
+        st['brake'] = min(1.0, -err / 22.0); st['gas'] = 0.0
+    elif err > 1.5:
+        st['gas'] = min(1.0, err / 14.0 + 0.55); st['brake'] = 0.0
+    else:
+        st['gas'], st['brake'] = 0.62, 0.0
+    accel = st['gas'] * 9.5 - st['brake'] * 21.0 - 0.012 * st['v']
+    st['v'] = max(35.0, st['v'] + accel * dt * 3.6)
+    st['brake_heat'] = min(1.0, st['brake_heat'] * 0.985 + st['brake'] * 0.06)
+
+    prox = (VMAX - target_now) / VMAX
+    st['steer'] = prox * (1 if int(st['pos'] * 14) % 2 else -1) * 0.6
+    st['g_lat'] = prox * 2.6 * (1 if st['steer'] > 0 else -1)
+
+    st['gear'] = min(7, max(2, int(st['v'] // 42) + 2))
+    st['rpm'] = int(4600 + ((st['v'] % 42) / 42) * 2600)
+
+    st['s_dist'] = st.get('s_dist', 0.0) + (st['v'] / 3.6) * dt
+    st['lap_ms'] += dt * 1000
+    st['fuel'] = max(2, 58.0 - (st['laps_done'] + st['pos']) * 2.9)
+    lap_done = False
+    if st['s_dist'] >= track_len:
+        st['s_dist'] -= track_len
+        st['last_ms'] = st['lap_ms']
+        st['best_ms'] = min(st['best_ms'], st['lap_ms']) if st['best_ms'] else st['lap_ms']
+        st['lap_ms'] = 0.0
+        st['laps_done'] += 1
+        lap_done = True
+    st['pos'] = st['s_dist'] / track_len
+    return lap_done
+
+
+def fresh_state():
+    return {'packet': 0, 'v': 60.0, 'gas': 0.0, 'brake': 0.0, 'brake_heat': 0.0, 'steer': 0.0,
+            'g_lat': 0.0, 'gear': 3, 'rpm': 4200, 'fuel': 58.0, 'pos': 0.0, 'lap_ms': 0.0,
+            'last_ms': 0.0, 'best_ms': 0.0, 'laps_done': 0, 't_total': 0.0, 's_dist': 0.0}
+
+
 # ---------------------------------------------------------------- main drive
 
 def run(args):
@@ -197,58 +246,17 @@ def run(args):
 
     p, g = ACCPhysics(), ACCGraphics()
     dt = 1.0 / args.hz
-    st = {'packet': 0, 'v': 60.0, 'gas': 0.0, 'brake': 0.0, 'brake_heat': 0.0, 'steer': 0.0,
-          'g_lat': 0.0, 'gear': 3, 'rpm': 4200, 'fuel': 58.0, 'pos': 0.0, 'lap_ms': 0.0,
-          'last_ms': 0.0, 'best_ms': 0.0, 'laps_done': 0, 't_total': 0.0}
-    s_dist = 0.0
+    st = fresh_state()
     deltas = lap_corner_deltas(0, rng)
     buf, last_send, lap_times = [], time.time(), []
 
     print(f'[drive] {args.laps} laps on {reader.track_name} at {args.hz}Hz…')
     while st['laps_done'] < args.laps:
         tick_start = time.time()
-        st['packet'] += 1
-        st['t_total'] += dt
-
-        # Chase the target speed profile with a bit of driver lag.
-        target_now = corner_speed_profile(st['pos'], deltas)
-        target_ahead = corner_speed_profile((st['pos'] + 45.0 / TRACK_LEN) % 1.0, deltas)
-        target = min(target_now, target_ahead)
-        err = target - st['v']
-        if err < -1.5:
-            st['brake'] = min(1.0, -err / 22.0); st['gas'] = 0.0
-        elif err > 1.5:
-            st['gas'] = min(1.0, err / 14.0 + 0.55); st['brake'] = 0.0
-        else:
-            st['gas'], st['brake'] = 0.62, 0.0
-        accel = st['gas'] * 9.5 - st['brake'] * 21.0 - 0.012 * st['v']
-        st['v'] = max(35.0, st['v'] + accel * dt * 3.6)
-        st['brake_heat'] = min(1.0, st['brake_heat'] * 0.985 + st['brake'] * 0.06)
-
-        # Steering / lateral g from corner proximity.
-        prox = (VMAX - target_now) / VMAX
-        st['steer'] = prox * (1 if int(st['pos'] * 14) % 2 else -1) * 0.6
-        st['g_lat'] = prox * 2.6 * (1 if st['steer'] > 0 else -1)
-
-        # Gears: simple speed bands.
-        st['gear'] = min(7, max(2, int(st['v'] // 42) + 2))  # struct gear: 0=R,1=N,2=1st…
-        band = (st['v'] % 42) / 42
-        st['rpm'] = int(4600 + band * 2600)
-
-        # Advance along the lap by distance.
-        s_dist += (st['v'] / 3.6) * dt
-        st['lap_ms'] += dt * 1000
-        st['fuel'] = max(2, 58.0 - (st['laps_done'] + st['pos']) * 2.9)
-        if s_dist >= TRACK_LEN:
-            s_dist -= TRACK_LEN
-            st['last_ms'] = st['lap_ms']
-            st['best_ms'] = min(st['best_ms'], st['lap_ms']) if st['best_ms'] else st['lap_ms']
-            lap_times.append(st['lap_ms'])
-            print(f"  lap {st['laps_done'] + 1}: {st['lap_ms'] / 60000:.0f}:{(st['lap_ms'] % 60000) / 1000:06.3f}")
-            st['lap_ms'] = 0.0
-            st['laps_done'] += 1
+        if advance_drive(st, dt, deltas):
+            lap_times.append(st['last_ms'])
+            print(f"  lap {st['laps_done']}: {st['last_ms'] / 60000:.0f}:{(st['last_ms'] % 60000) / 1000:06.3f}")
             deltas = lap_corner_deltas(st['laps_done'], rng)
-        st['pos'] = s_dist / TRACK_LEN
 
         # Real structs → real reader → real normalize → batch buffer.
         fill_structs(p, g, st)
