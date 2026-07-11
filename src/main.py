@@ -29,6 +29,13 @@ def _setup_logging():
             sys.stdout = log_file
         if sys.stderr is None:
             sys.stderr = log_file
+        # Console builds: Windows terminals default to cp1252, which can't encode
+        # the emoji in our status prints — without this the app dies at startup.
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.reconfigure(encoding='utf-8', errors='replace')
+            except Exception:
+                pass
     except Exception:
         pass
 
