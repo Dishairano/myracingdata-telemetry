@@ -33,6 +33,10 @@ class ACCSharedMemoryReader:
         self.last_packet_id = -1
         self.car_name = "unknown"
         self.track_name = "unknown"
+        # From the static page (read once at connect) — the pit window lives
+        # there, not on graphics; reading it off `g` raised on every frame.
+        self.pit_window_start = 0
+        self.pit_window_end = 0
 
     @property
     def is_connected(self) -> bool:
@@ -56,6 +60,8 @@ class ACCSharedMemoryReader:
             static = ACCStatic.from_buffer_copy(self.static_map.read(ctypes.sizeof(ACCStatic)))
             self.car_name = static.carModel or "unknown"
             self.track_name = static.track or "unknown"
+            self.pit_window_start = static.PitWindowStart
+            self.pit_window_end = static.PitWindowEnd
 
             self.connected = True
             print("[OK] Connected to Assetto Corsa Competizione")
@@ -192,8 +198,8 @@ class ACCSharedMemoryReader:
             # Strategy / fuel
             'fuel_est_laps': round(g.fuelEstimatedLaps, 2),
             'session_time_left_ms': round(g.sessionTimeLeft, 0),
-            'pit_window_start': g.PitWindowStart,
-            'pit_window_end': g.PitWindowEnd,
+            'pit_window_start': self.pit_window_start,
+            'pit_window_end': self.pit_window_end,
             # Weather forecast (rain now is rain_intensity above; these are ahead)
             'rain_10min': g.rainIntensityIn10min,
             'rain_30min': g.rainIntensityIn30min,
