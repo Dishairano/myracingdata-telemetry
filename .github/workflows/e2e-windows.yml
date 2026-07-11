@@ -1,0 +1,72 @@
+name: E2E Windows (robot rig)
+
+# The founder-free rig test: build the real .exe, stand up fake ACC shared
+# memory (the same named pages the game creates), run the exe headless, and
+# assert a full session with laps + sector splits landed in production.
+# Manual trigger only — every run writes a session to the test account.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        set -e
+        python -m pip install --upgrade pip
+        pip install -r requirements-windows.txt
+        pip install pyinstaller
+
+    - name: Verify ACC struct layout (official Kunos offsets)
+      run: python scripts/verify_acc_layout.py
+
+    - name: Build executable
+      run: pyinstaller myracingdata.spec
+
+    - name: Bootstrap ephemeral test account + client config
+      run: python scripts/ci_bootstrap.py
+
+    - name: Run fake ACC + the built exe
+      shell: pwsh
+      run: |
+        $fake = Start-Process python -ArgumentList "scripts/fake_acc_windows.py","--laps","3","--track-len","2500" `
+          -PassThru -RedirectStandardOutput fake_acc.log -RedirectStandardError fake_acc.err
+        Start-Sleep -Seconds 4
+        $app = Start-Process "dist/MyRacingData-Telemetry.exe" -ArgumentList "--no-gui" `
+          -PassThru -RedirectStandardOutput client.log -RedirectStandardError client.err
+        Write-Host "fake ACC pid $($fake.Id) · client pid $($app.Id) · driving ~3 laps…"
+        # 3 laps of 2500m ≈ 170s + out-lap margin + session-end grace
+        Start-Sleep -Seconds 240
+        if (!$fake.HasExited) { Stop-Process -Id $fake.Id -Force }
+        Start-Sleep -Seconds 8   # let the client notice status=AC_OFF and end the session
+        if (!$app.HasExited) { Stop-Process -Id $app.Id -Force }
+        Write-Host "--- fake_acc.log ---"; Get-Content fake_acc.log -ErrorAction SilentlyContinue
+        Write-Host "--- client.log ---";  Get-Content client.log  -ErrorAction SilentlyContinue | Select-Object -Last 40
+
+    - name: Assert session landed in production
+      run: python scripts/ci_assert_session.py
+
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-logs
+        path: |
+          client.log
+          client.err
+          fake_acc.log
+          fake_acc.err
+        retention-days: 14
