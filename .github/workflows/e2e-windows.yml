@@ -33,8 +33,13 @@ jobs:
     - name: Verify ACC struct layout (official Kunos offsets)
       run: python scripts/verify_acc_layout.py
 
-    - name: Build executable
-      run: pyinstaller myracingdata.spec
+    - name: Build executable (console variant for diagnosable e2e)
+      shell: pwsh
+      run: |
+        # Same bundle, console=True so PyInstaller bootstrap errors are visible
+        # text instead of an invisible dialog on the runner.
+        (Get-Content myracingdata.spec) -replace 'console=False','console=True' | Set-Content myracingdata.spec
+        pyinstaller myracingdata.spec
 
     - name: Bootstrap ephemeral test account + client config
       run: python scripts/ci_bootstrap.py
@@ -48,8 +53,10 @@ jobs:
         $app = Start-Process "dist/MyRacingData-Telemetry.exe" -ArgumentList "--no-gui" `
           -PassThru -RedirectStandardOutput client.log -RedirectStandardError client.err
         Write-Host "fake ACC pid $($fake.Id) · client pid $($app.Id) · driving ~3 laps…"
+        Start-Sleep -Seconds 12
+        Write-Host "client early check — exited: $($app.HasExited) $(if ($app.HasExited) { 'code ' + $app.ExitCode })"
         # 3 laps of 2500m ≈ 170s + out-lap margin + session-end grace
-        Start-Sleep -Seconds 240
+        Start-Sleep -Seconds 228
         if (!$fake.HasExited) { Stop-Process -Id $fake.Id -Force }
         Start-Sleep -Seconds 8   # let the client notice status=AC_OFF and end the session
         if (!$app.HasExited) { Stop-Process -Id $app.Id -Force }
@@ -58,6 +65,7 @@ jobs:
         # Windowed exe: the app's real log lives in ~/.myracingdata/client.log
         Copy-Item "$env:USERPROFILE\.myracingdata\client.log" app_internal.log -ErrorAction SilentlyContinue
         Write-Host "--- app internal log ---"; Get-Content app_internal.log -ErrorAction SilentlyContinue | Select-Object -Last 60
+        Write-Host "--- client stderr ---"; Get-Content client.err -ErrorAction SilentlyContinue | Select-Object -Last 30
 
     - name: Assert session landed in production
       run: python scripts/ci_assert_session.py
