@@ -75,7 +75,7 @@ def main():
         size = ctypes.sizeof(win)
         if size != want_size:
             errs.append(f'  sizeof: {size} != official {want_size}')
-        print(f'{cls.__name__}: ' + ('✓ matches official Kunos layout' if not errs else 'MISMATCH'))
+        print(f'{cls.__name__}: ' + ('OK - matches official Kunos layout' if not errs else 'MISMATCH'))
         for e in errs:
             print(e)
         ok &= not errs
