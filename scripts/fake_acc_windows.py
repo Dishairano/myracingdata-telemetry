@@ -31,6 +31,12 @@ def main():
     ap.add_argument('--laps', type=int, default=3)
     ap.add_argument('--track-len', type=float, default=2500.0)
     ap.add_argument('--hz', type=int, default=60)
+    # Mid-run LIVE->LIVE track switch (server/session change that never hits the
+    # menu): after this many laps, rewrite the static page's track WITHOUT
+    # dropping status to OFF. The client should roll to a new backend session.
+    ap.add_argument('--switch-after', type=int, default=0)
+    ap.add_argument('--track2', type=str, default='Synthetic GP CI B')
+    ap.add_argument('--car2', type=str, default='')
     args = ap.parse_args()
 
     # Create the named pages exactly like the game does. Both the fake and the
@@ -61,11 +67,21 @@ def main():
     dt = 1.0 / args.hz
 
     print(f'[fake-acc] pages up · driving {args.laps} laps of {args.track_len:.0f}m at {args.hz}Hz', flush=True)
+    switched = False
     while st['laps_done'] < args.laps:
         tick = time.time()
         if advance_drive(st, dt, deltas, track_len=args.track_len):
             print(f"[fake-acc] lap {st['laps_done']}: {st['last_ms'] / 1000:.3f}s", flush=True)
             deltas = lap_corner_deltas(st['laps_done'], rng)
+            if args.switch_after and st['laps_done'] == args.switch_after and not switched:
+                # Rewrite ONLY the static page (track/car). Status stays LIVE, so
+                # this is the LIVE->LIVE switch the client must catch on its own.
+                st_struct.track = args.track2
+                if args.car2:
+                    st_struct.carModel = args.car2
+                static_mm.seek(0); static_mm.write(bytes(st_struct))
+                switched = True
+                print(f'[fake-acc] LIVE track switch -> {args.track2} (status stays LIVE)', flush=True)
         fill_structs(p, g, st)
         phys_mm.seek(0); phys_mm.write(bytes(p))
         gfx_mm.seek(0); gfx_mm.write(bytes(g))

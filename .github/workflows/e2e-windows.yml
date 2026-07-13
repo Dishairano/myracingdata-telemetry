@@ -47,16 +47,16 @@ jobs:
     - name: Run fake ACC + the built exe
       shell: pwsh
       run: |
-        $fake = Start-Process python -ArgumentList "scripts/fake_acc_windows.py","--laps","3","--track-len","2500" `
+        $fake = Start-Process python -ArgumentList "scripts/fake_acc_windows.py","--laps","5","--track-len","2500","--switch-after","2","--track2","Synthetic GP CI B" `
           -PassThru -RedirectStandardOutput fake_acc.log -RedirectStandardError fake_acc.err
         Start-Sleep -Seconds 4
         $app = Start-Process "dist/MyRacingData-Telemetry.exe" -ArgumentList "--no-gui" `
           -PassThru -RedirectStandardOutput client.log -RedirectStandardError client.err
-        Write-Host "fake ACC pid $($fake.Id) · client pid $($app.Id) · driving ~3 laps…"
+        Write-Host "fake ACC pid $($fake.Id) · client pid $($app.Id) · driving ~5 laps, LIVE track switch after 2…"
         Start-Sleep -Seconds 12
         Write-Host "client early check — exited: $($app.HasExited) $(if ($app.HasExited) { 'code ' + $app.ExitCode })"
-        # 3 laps of 2500m ≈ 170s + out-lap margin + session-end grace
-        Start-Sleep -Seconds 228
+        # 5 laps of 2500m ≈ 285s + out-lap margin + session-end grace
+        Start-Sleep -Seconds 360
         if (!$fake.HasExited) { Stop-Process -Id $fake.Id -Force }
         Start-Sleep -Seconds 8   # let the client notice status=AC_OFF and end the session
         if (!$app.HasExited) { Stop-Process -Id $app.Id -Force }
@@ -68,6 +68,8 @@ jobs:
         Write-Host "--- client stderr ---"; Get-Content client.err -ErrorAction SilentlyContinue | Select-Object -Last 30
 
     - name: Assert session landed in production
+      env:
+        CI_SWITCH_TRACK: "Synthetic GP CI B"
       run: python scripts/ci_assert_session.py
 
     - name: Upload logs
