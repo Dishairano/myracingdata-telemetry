@@ -122,6 +122,8 @@ class TelemetryCapture:
         # sim leaves to the menu/exits — so each on-track session is its own
         # backend session.
         self.session_id = None
+        self.session_track = None
+        self.session_car = None
         self.ws_client = None
 
         self.running = True
@@ -149,6 +151,20 @@ class TelemetryCapture:
                     self._begin_session()
                 elif not self.active_game and self.session_id:
                     self._end_session('sim session ended')
+                elif self.active_game and self.session_id:
+                    # Already recording — watch for an in-place track/car switch
+                    # (server/session change that never dropped to the menu, so
+                    # active_game stayed live). Roll to a fresh, correctly-labeled
+                    # session when it happens.
+                    reader = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu}.get(self.active_game)
+                    if reader is not None:
+                        track, car = reader.current_ids() if hasattr(reader, 'current_ids') else (
+                            getattr(reader, 'track_name', 'Unknown'), getattr(reader, 'car_name', 'Unknown'))
+                        real = bool(track) and str(track).lower() not in ('unknown', '')
+                        if real and (track, car) != (self.session_track, self.session_car):
+                            self._log(f"↻ Track/car changed live ({self.session_track} -> {track}) — new session")
+                            self._end_session('track/car changed')
+                            self._begin_session()
             except Exception as e:
                 self._log(f"⚠ Session monitor error: {e}")
 
@@ -189,6 +205,8 @@ class TelemetryCapture:
             with self._buf_lock:
                 self._send_buf.clear()  # drop any pre-session frames
             self.session_id = sid
+            self.session_track = track
+            self.session_car = car
             self.ws_client = ws
             self.data_count = 0
             self.last_status_update = 0

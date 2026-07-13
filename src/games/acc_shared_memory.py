@@ -106,6 +106,24 @@ class ACCSharedMemoryReader:
             self.connected = False
             return None
 
+    def current_ids(self):
+        """Live (track, car) re-read from the static page.
+
+        track_name/car_name are captured once at connect(), but ACC rewrites the
+        static page when a session/server switches in place (LIVE -> LIVE, never
+        dropping to the menu). The session monitor calls this at 2Hz to notice
+        such a switch and roll to a new backend session. Cheap (small struct)."""
+        if not self.connected or not self.static_map:
+            return (self.track_name, self.car_name)
+        try:
+            self.static_map.seek(0)
+            st = ACCStatic.from_buffer_copy(self.static_map.read(ctypes.sizeof(ACCStatic)))
+            self.track_name = st.track or self.track_name
+            self.car_name = st.carModel or self.car_name
+        except Exception:
+            pass
+        return (self.track_name, self.car_name)
+
     def _parse(self, p, g):
         """AC-shaped core (for normalize_acc) + an `ext` dict of rich channels."""
         return {
