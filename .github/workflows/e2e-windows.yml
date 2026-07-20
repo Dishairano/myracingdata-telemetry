@@ -33,6 +33,11 @@ jobs:
     - name: Verify ACC struct layout (official Kunos offsets)
       run: python scripts/verify_acc_layout.py
 
+    # Fast, isolated check: the real reader against real Windows shared memory.
+    # Runs before the exe scenarios so a reader bug is obvious on its own.
+    - name: Smoke test — iRacing reader vs real shared memory
+      run: python scripts/ci_iracing_smoke.py
+
     - name: Build executable (console variant for diagnosable e2e)
       shell: pwsh
       run: |
