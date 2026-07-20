@@ -110,9 +110,39 @@ class IRacingTelemetry:
 
     def connect(self) -> bool:
         try:
-            self.mm = mmap.mmap(-1, 0, MEM_MAP_NAME, access=mmap.ACCESS_READ)
+            # Windows can't infer a length for a named mapping opened with
+            # fileno=-1 (there's no file to size from), so map the header first,
+            # work out exactly how big the region needs to be from the offsets it
+            # publishes, then remap. Sizes differ wildly (the real sim maps ~1MB;
+            # our CI fake maps a few KB), so a hardcoded size can't work.
+            probe = mmap.mmap(-1, HEADER_SIZE, MEM_MAP_NAME)
+            try:
+                probe.seek(0)
+                h = struct.unpack('<10i', probe.read(40))
+                status, sess_len, sess_off = h[1], h[4], h[5]
+                num_vars, var_off, num_buf, buf_len = h[6], h[7], h[8], h[9]
+                buf_offsets = []
+                for i in range(MAX_BUFS):
+                    probe.seek(48 + i * VARBUF_SIZE)
+                    _tick, boff = struct.unpack('<2i', probe.read(8))
+                    buf_offsets.append(boff)
+            finally:
+                probe.close()
+
+            # mmap CREATES the region when the sim isn't running, so "it opened"
+            # is not "iRacing is live" — the connected bit is what decides.
+            if not (status & ST_CONNECTED) or num_vars <= 0:
+                self.connected = False
+                return False
+
+            need = max(
+                var_off + num_vars * VARHEADER_SIZE,
+                sess_off + max(0, sess_len),
+                (max(buf_offsets) + buf_len) if buf_offsets else 0,
+                HEADER_SIZE,
+            )
+            self.mm = mmap.mmap(-1, need, MEM_MAP_NAME)
             hdr = self._header()
-            # Not just "the map exists" — the sim must report itself connected.
             if not (hdr['status'] & ST_CONNECTED) or hdr['num_vars'] <= 0:
                 self.disconnect()
                 return False
