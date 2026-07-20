@@ -46,6 +46,7 @@ from config import Config
 from capture.canonical import normalize
 from games.ac import ACTelemetry
 from games.acc_shared_memory import ACCSharedMemoryReader
+from games.iracing import IRacingTelemetry
 from games.lmu import LMUTelemetry
 from network.websocket_client import WebSocketClient
 from ui.system_tray import SystemTrayApp
@@ -58,6 +59,7 @@ class TelemetryCapture:
         self.ac = ACTelemetry()
         self.lmu = LMUTelemetry()
         self.acc = ACCSharedMemoryReader()
+        self.iracing = IRacingTelemetry()
         self.ws_client = None
         self.active_game = None
         self.running = False
@@ -156,7 +158,7 @@ class TelemetryCapture:
                     # (server/session change that never dropped to the menu, so
                     # active_game stayed live). Roll to a fresh, correctly-labeled
                     # session when it happens.
-                    reader = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu}.get(self.active_game)
+                    reader = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu, 'iracing': self.iracing}.get(self.active_game)
                     if reader is not None:
                         track, car = reader.current_ids() if hasattr(reader, 'current_ids') else (
                             getattr(reader, 'track_name', 'Unknown'), getattr(reader, 'car_name', 'Unknown'))
@@ -171,7 +173,7 @@ class TelemetryCapture:
     def _begin_session(self):
         """Create a backend session for the currently-detected sim + connect WS."""
         import requests
-        reader = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu}.get(self.active_game)
+        reader = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu, 'iracing': self.iracing}.get(self.active_game)
         track = getattr(reader, 'track_name', None) or 'Unknown'
         car = getattr(reader, 'car_name', None) or 'Unknown'
         game = self.active_game
@@ -258,6 +260,8 @@ class TelemetryCapture:
             self.lmu.disconnect()
         if self.acc.is_connected:
             self.acc.disconnect()
+        if self.iracing.is_connected:
+            self.iracing.disconnect()
 
         self.active_game = None
         print("✓ Stopped")
@@ -325,9 +329,9 @@ class TelemetryCapture:
         # packet id yet (e.g. car in the menu/garage). That is NOT a disconnect,
         # so we keep polling. A reader only flips is_connected to False on an
         # actual shared-memory error (sim closed), which sends us back to detect.
-        readers = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu}
+        readers = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu, 'iracing': self.iracing}
         labels = {'ac': 'Assetto Corsa', 'acc': 'Assetto Corsa Competizione',
-                  'lmu': 'Le Mans Ultimate'}
+                  'lmu': 'Le Mans Ultimate', 'iracing': 'iRacing'}
         if self.active_game in readers:
             reader = readers[self.active_game]
             if reader.is_connected:
@@ -340,6 +344,12 @@ class TelemetryCapture:
         # so it gets its own full-channel reader; AC and ACC share the same
         # shared-memory names, so whichever is tried first claims a live session.
         else:
+            # iRacing first: its own memory-map name, so no collision with AC/ACC.
+            if self.iracing.connect():
+                self.active_game = 'iracing'
+                self._log("✓ iRacing detected!")
+                return None
+
             # Try ACC (shared memory, full channels)
             if self.acc.connect():
                 self.active_game = 'acc'
