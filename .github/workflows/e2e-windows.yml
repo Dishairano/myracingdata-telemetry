@@ -74,6 +74,34 @@ jobs:
         CI_SWITCH_TRACK: "Synthetic GP CI B"
       run: python scripts/ci_assert_session.py
 
+    # Second scenario: iRacing, via a fake irsdk shared-memory map. Reuses the
+    # exe + ephemeral account already set up above.
+    - name: Run fake iRacing + the built exe
+      shell: pwsh
+      run: |
+        $fake = Start-Process python -ArgumentList "scripts/fake_iracing_windows.py","--laps","3","--track-len","2500" `
+          -PassThru -RedirectStandardOutput fake_ir.log -RedirectStandardError fake_ir.err
+        Start-Sleep -Seconds 4
+        $app = Start-Process "dist/MyRacingData-Telemetry.exe" -ArgumentList "--no-gui" `
+          -PassThru -RedirectStandardOutput client_ir.log -RedirectStandardError client_ir.err
+        Write-Host "fake iRacing pid $($fake.Id) · client pid $($app.Id) · driving ~3 laps…"
+        Start-Sleep -Seconds 12
+        Write-Host "client early check — exited: $($app.HasExited) $(if ($app.HasExited) { 'code ' + $app.ExitCode })"
+        # 3 laps of 2500m ≈ 170s + out-lap margin + session-end grace
+        Start-Sleep -Seconds 228
+        if (!$fake.HasExited) { Stop-Process -Id $fake.Id -Force }
+        Start-Sleep -Seconds 8
+        if (!$app.HasExited) { Stop-Process -Id $app.Id -Force }
+        Write-Host "--- fake_ir.log ---"; Get-Content fake_ir.log -ErrorAction SilentlyContinue
+        Write-Host "--- fake_ir stderr ---"; Get-Content fake_ir.err -ErrorAction SilentlyContinue | Select-Object -Last 20
+        Copy-Item "$env:USERPROFILE\.myracingdata\client.log" app_ir.log -ErrorAction SilentlyContinue
+        Write-Host "--- app internal log ---"; Get-Content app_ir.log -ErrorAction SilentlyContinue | Select-Object -Last 40
+
+    - name: Assert iRacing session landed in production
+      env:
+        CI_PRIMARY_TRACK: "Synthetic Ring CI"
+      run: python scripts/ci_assert_session.py
+
     - name: Upload logs
       if: always()
       uses: actions/upload-artifact@v4

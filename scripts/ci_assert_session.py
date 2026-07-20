@@ -4,6 +4,7 @@ Assert the CI e2e drive actually landed in the backend.
 Base case: a fresh 'Synthetic GP CI' session for the test account, with
 telemetry, >=2 timed laps and sector splits.
 
+CI_PRIMARY_TRACK overrides the expected track (default 'Synthetic GP CI').
 If CI_SWITCH_TRACK is set, also assert the mid-run LIVE->LIVE track switch
 produced a SECOND, distinct session under that track name (>=2 timed laps) —
 proving the client rolled to a new session without the sim hitting the menu.
@@ -78,7 +79,8 @@ def main():
     body = r.json()
     sessions = body if isinstance(body, list) else body.get('sessions', [])
 
-    primary = newest_exact(sessions, 'Synthetic GP CI')
+    primary_track = os.environ.get('CI_PRIMARY_TRACK', 'Synthetic GP CI')
+    primary = newest_exact(sessions, primary_track)
     if not check(hdr, primary, 'primary'):
         return 1
 
