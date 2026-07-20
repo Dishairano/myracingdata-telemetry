@@ -186,10 +186,17 @@ def normalize_acc(raw):
     })
 
 
+def normalize_iracing(raw):
+    """iRacing's SDK reader emits the same shape as AC/ACC (full inputs, tyres,
+    lap block and an `ext` blob), so it goes through the shared AC mapping."""
+    return _finalize("iracing", _map_ac_shape(raw))
+
+
 _NORMALIZERS = {
     "ac": normalize_ac,
     "acc": normalize_acc,
     "lmu": normalize_lmu,
+    "iracing": normalize_iracing,
 }
 
 
