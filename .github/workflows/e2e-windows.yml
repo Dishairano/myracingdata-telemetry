@@ -113,4 +113,11 @@ jobs:
           app_internal.log
           fake_acc.log
           fake_acc.err
+          fake_ir.log
+          fake_ir.err
+          client_ir.log
+          client_ir.err
+          app_ir.log
+          fake_acc.log
+          fake_acc.err
         retention-days: 14
