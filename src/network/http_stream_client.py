@@ -29,7 +29,9 @@ class HttpStreamClient:
         self.thread = None
         self.dropped = 0
         self._pending = []
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()       # guards _pending
+        self._send_lock = threading.Lock()  # one upload at a time (uploader vs. final flush)
+        self._next_seq = 0                  # per-frame sequence, lets the server drop retried duplicates
 
     @property
     def is_connected(self) -> bool:
@@ -55,7 +57,11 @@ class HttpStreamClient:
         if not frames:
             return
         with self._lock:
-            self._pending.extend(frames)
+            for frame in frames:
+                numbered = dict(frame)  # don't write into the caller's frame
+                numbered['_seq'] = self._next_seq
+                self._next_seq += 1
+                self._pending.append(numbered)
             over = len(self._pending) - self.MAX_BACKLOG
             if over > 0:
                 del self._pending[:over]
@@ -99,6 +105,10 @@ class HttpStreamClient:
 
     def _send_once(self) -> bool:
         """Upload the oldest chunk. False means 'try again later' (network/server trouble)."""
+        with self._send_lock:
+            return self._send_chunk()
+
+    def _send_chunk(self) -> bool:
         with self._lock:
             chunk = self._pending[:self.MAX_PER_POST]
         if not chunk:
@@ -108,16 +118,24 @@ class HttpStreamClient:
         except Exception:
             return False
         if resp.status_code == 200:
-            with self._lock:
-                del self._pending[:len(chunk)]
+            self._drop_through(chunk[-1]['_seq'])
             return True
         if resp.status_code in (400, 401, 403, 404, 413):
             # Retrying won't help: drop the chunk so the rest can flow.
             print(f"HTTP stream rejected {len(chunk)} frames ({resp.status_code}): {resp.text[:120]}")
+            self._drop_through(chunk[-1]['_seq'])
             with self._lock:
-                del self._pending[:len(chunk)]
                 self.dropped += len(chunk)
             if resp.status_code in (401, 403, 404):
                 self.connected = False
             return True
         return False
+
+    def _drop_through(self, seq: int):
+        """Remove frames up to and including `seq`. By number, not count: the
+        backlog may have been trimmed from the front while this chunk was in flight."""
+        with self._lock:
+            i = 0
+            while i < len(self._pending) and self._pending[i]['_seq'] <= seq:
+                i += 1
+            del self._pending[:i]
