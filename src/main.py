@@ -302,6 +302,9 @@ class TelemetryCapture:
             raw = self._read_telemetry()
             frame = normalize(self.active_game, raw)
             if frame:
+                # Capture time travels with the frame, so the server can store when
+                # it was read rather than when its batch arrived (HTTPS sends ~1 s at once).
+                frame['captured_at'] = int(time.time() * 1000)
                 self.last_frame = frame
                 with self._buf_lock:
                     self._send_buf.append(frame)
