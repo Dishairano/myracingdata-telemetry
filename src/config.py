@@ -10,13 +10,14 @@ class Config:
     """Application configuration"""
     
     # Version
-    VERSION = "1.7.1"
+    VERSION = "1.8.0"
     APP_NAME = "MyRacingData Telemetry Capture"
     
     # Default settings
     DEFAULTS = {
         'api_url': 'https://myracingdata.com/api/v1',
         'ws_url': 'wss://myracingdata.com/api/v1/ws',
+        'transport': 'auto',  # 'auto' (HTTPS, WebSocket fallback) | 'http' | 'ws'
         'api_key': '',
         'update_rate_hz': 120,
         'buffer_size': 1000,

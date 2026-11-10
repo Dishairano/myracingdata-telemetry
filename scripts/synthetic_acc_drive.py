@@ -32,6 +32,7 @@ from games.acc_structs import ACCPhysics, ACCGraphics
 from games.acc_shared_memory import ACCSharedMemoryReader
 from capture.canonical import normalize
 from network.websocket_client import WebSocketClient
+from network.http_stream_client import HttpStreamClient
 
 
 # ---------------------------------------------------------------- fake memory
@@ -237,12 +238,18 @@ def run(args):
     sid = data.get('session', {}).get('id') or data.get('id')
     print(f'[session] {sid}')
 
-    ws_base = api.replace('https://', 'wss://').replace('http://', 'ws://')
-    from urllib.parse import quote
-    ws = WebSocketClient(f'{ws_base}/ws/session/{sid}?key={quote(key)}', key)
-    if not ws.connect():
-        print('WS connect failed'); sys.exit(1)
-    print('[ws] connected (authed via ?key=)')
+    if args.transport == 'http':
+        ws = HttpStreamClient(f'{api}/telemetry/stream/{sid}', key)
+        if not ws.connect():
+            print('HTTP stream connect failed'); sys.exit(1)
+        print('[http] streaming over HTTPS')
+    else:
+        ws_base = api.replace('https://', 'wss://').replace('http://', 'ws://')
+        from urllib.parse import quote
+        ws = WebSocketClient(f'{ws_base}/ws/session/{sid}?key={quote(key)}', key)
+        if not ws.connect():
+            print('WS connect failed'); sys.exit(1)
+        print('[ws] connected (authed via ?key=)')
 
     p, g = ACCPhysics(), ACCGraphics()
     dt = 1.0 / args.hz
@@ -265,6 +272,7 @@ def run(args):
         if raw:
             frame = normalize('acc', raw)
             if frame:
+                frame['captured_at'] = int(time.time() * 1000)  # as the client's capture loop does
                 buf.append(frame)
 
         # Ship batches on the client's cadence.
@@ -291,4 +299,5 @@ if __name__ == '__main__':
     ap.add_argument('--api', default='https://myracingdata.com/api/v1')
     ap.add_argument('--laps', type=int, default=4)
     ap.add_argument('--hz', type=int, default=60)
+    ap.add_argument('--transport', choices=['ws', 'http'], default='ws')
     run(ap.parse_args())
