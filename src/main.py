@@ -49,6 +49,7 @@ from games.acc_shared_memory import ACCSharedMemoryReader
 from games.iracing import IRacingTelemetry
 from games.lmu import LMUTelemetry
 from network.websocket_client import WebSocketClient
+from network.http_stream_client import HttpStreamClient
 from ui.system_tray import SystemTrayApp
 
 class TelemetryCapture:
@@ -171,7 +172,7 @@ class TelemetryCapture:
                 self._log(f"⚠ Session monitor error: {e}")
 
     def _begin_session(self):
-        """Create a backend session for the currently-detected sim + connect WS."""
+        """Create a backend session for the currently-detected sim + connect the telemetry stream."""
         import requests
         reader = {'ac': self.ac, 'acc': self.acc, 'lmu': self.lmu, 'iracing': self.iracing}.get(self.active_game)
         track = getattr(reader, 'track_name', None) or 'Unknown'
@@ -193,15 +194,9 @@ class TelemetryCapture:
             if not sid:
                 return
 
-            # Identify on the WS itself (?key=) — the server authenticates the
-            # connection against the session owner before accepting telemetry.
-            from urllib.parse import quote
-            ws = WebSocketClient(
-                f"{self.config.ws_url}/session/{sid}?key={quote(self.config.api_key or '')}",
-                self.config.api_key,
-            )
-            if not ws.connect():
-                self._log("❌ WebSocket connection failed")
+            ws = self._open_stream(sid)
+            if not ws:
+                self._log("❌ Could not connect to MyRacingData")
                 return
 
             with self._buf_lock:
@@ -215,6 +210,33 @@ class TelemetryCapture:
             self._log(f"🏁 Session started — {track} · {car}")
         except Exception as e:
             self._log(f"❌ Session start failed: {e}")
+
+    def _open_stream(self, sid):
+        """Connect the telemetry stream for a session: HTTPS first, WebSocket as fallback.
+
+        transport = 'auto' (default) | 'http' | 'ws'. Both carry identical frames;
+        HTTPS also works on hosting that can't keep a socket open.
+        """
+        transport = (self.config.get('transport') or 'auto').lower()
+        if transport in ('auto', 'http'):
+            http = HttpStreamClient(f"{self.config.api_url}/telemetry/stream/{sid}", self.config.api_key)
+            if http.connect():
+                self._log("📡 Streaming over HTTPS")
+                return http
+            if transport == 'http':
+                return None
+
+        # Identify on the WS itself (?key=) — the server authenticates the
+        # connection against the session owner before accepting telemetry.
+        from urllib.parse import quote
+        ws = WebSocketClient(
+            f"{self.config.ws_url}/session/{sid}?key={quote(self.config.api_key or '')}",
+            self.config.api_key,
+        )
+        if ws.connect():
+            self._log("📡 Streaming over WebSocket")
+            return ws
+        return None
 
     def _end_session(self, reason=''):
         """End the current backend session and close its WebSocket."""
